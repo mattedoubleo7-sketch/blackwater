@@ -48,7 +48,7 @@ wss.on('connection', ws => {
       console.log(`+ ${name} (${clients.size} online)`);
       return;
     }
-    if(Array.isArray(m) && m.length>=4) SRV.input(c.a, m);
+    if(Array.isArray(m) && m.length>=4) SRV.input(c.a, m);   // [mx,my,ang,flags,slot,seq]
   });
   ws.on('close', () => { if(c){ clients.delete(ws); SRV.leave(c.a); SRV.LOG.push(`${c.name} left the strip`); console.log(`- ${c.name} (${clients.size} online)`); } });
   ws.on('error', () => {});
@@ -77,7 +77,7 @@ function packActor(a, now){
 }
 function packMe(a, now){
   return { stam:Math.round(a.stam), ammo:a.ammo, heals:a.heals, nades:a.nades, bleed:Math.round(a.bleed*10)/10, slots:a.slots, sel:a.sel, last:a.last,
-    vh:a.vestHp, vestLvl:a.vest, helmLvl:a.helm, hsCd:rem(a.hsCd,now), fs:rem(a.fireSlow,now), dr:rem(a.drawEnd||0,now), su:rem(a.suppress||0,now), ads:a.ads?1:0 };
+    vh:a.vestHp, vestLvl:a.vest, helmLvl:a.helm, hsCd:rem(a.hsCd,now), fs:rem(a.fireSlow,now), dr:rem(a.drawEnd||0,now), su:rem(a.suppress||0,now), ads:a.ads?1:0, seq:a.ackSeq|0 };
 }
 function broadcast(){
   if(!clients.size){ events.length = 0; SRV.LOG.length = 0; return; }

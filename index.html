@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>BLACKWATER — tactical top-down BR</title>
+<meta name="theme-color" content="#05070a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
   :root{
     --steel:#8d9aa4; --dim:#5b666f; --ink:#0a0d11; --panel:#12171d;
@@ -174,6 +179,11 @@
   body.touch .slot{padding:9px 11px;font-size:11px}
   body.touch .slot.sel{background:#1c2731ee}
   body.touch #mini{width:96px;height:96px}
+  body.touch #board{left:12px;right:auto;top:176px;width:112px;font-size:9px;padding:4px 6px}
+  body.touch #paneNet input,body.touch #paneIo input{font-size:16px}   /* iOS zooms into anything smaller */
+  body.touch .lobby{gap:10px} body.touch .lhead h1{font-size:34px} body.touch .panes{padding:12px}
+  body.touch .tab{padding:10px 8px;font-size:10px}
+  #ioUrl{width:min(300px,100%)} .netrow{flex-wrap:wrap}
   body.touch #hint{bottom:auto;top:76px}
   body.touch #log{max-width:38vw;font-size:10px}
 </style>
@@ -220,6 +230,7 @@
     <div class="tbtn" id="tNade"   style="right:18px;bottom:calc(194px + env(safe-area-inset-bottom))">FRAG</div>
     <div class="tbtn" id="tHeal"   style="right:104px;bottom:calc(236px + env(safe-area-inset-bottom))">HEAL</div>
     <div class="tpill" id="tEdit">MOVE UI</div>
+    <div class="tpill" id="tLeave" style="top:154px;display:none">LEAVE</div>
   </div>
 
   <div class="screen" id="start">
@@ -374,7 +385,7 @@ const mctx = mini.getContext('2d');
 
 let VW=0, VH=0, DPR=1, VWw=0, VHw=0, ZOOM=1, touchMode=false;
 function resize(){
-  DPR = Math.min(2, window.devicePixelRatio||1);
+  DPR = Math.min(touchMode?1.5:2, window.devicePixelRatio||1);   // phones: fewer pixels, steadier frame rate
   VW = window.innerWidth; VH = window.innerHeight;
   cv.width = lcv.width = Math.floor(VW*DPR);
   cv.height= lcv.height= Math.floor(VH*DPR);
@@ -1368,6 +1379,7 @@ function setupTouch(){
       el.style.top =clamp(t.clientY-hh,2,VH-hh*2-2)+'px';
     },{passive:false}); };
   bind('tReload',()=>{pend.reload=1;});
+  const lv=document.getElementById('tLeave'); lv.addEventListener('touchstart',e=>{ e.preventDefault(); e.stopPropagation(); if(IO.on){ ioLeave(); openLobby(); } },{passive:false});
   bind('tPick',()=>{pend.pick=1;});
   bind('tHeal',()=>{pend.heal=1;});
   bind('tNade',()=>{TB.nade=true;},()=>{TB.nade=false;});
@@ -2329,7 +2341,7 @@ function stepSim(){
     const q=players[i];
     const inp = NET.on ? netInput(i,tick) : IS_SERVER ? (q.pendInp||EMPTY_INP) : (q===P ? sampleInput() : EMPTY_INP);
     applyInput(q, inp, dt);
-    if(IS_SERVER && q.pendInp) q.pendInp={mx:inp.mx,my:inp.my,ang:inp.ang,f:inp.f&IB_HELD,slot:0};   // one-shots are spent
+    if(IS_SERVER && q.pendInp){ q.ackSeq=inp.seq|0; q.pendInp={mx:inp.mx,my:inp.my,ang:inp.ang,f:inp.f&IB_HELD,slot:0,seq:inp.seq}; }   // one-shots are spent
   }
   for(const b of bots) if(!b.dead) botThink(b,dt);
   for(const a of list) updateActor(a,dt,list);
@@ -2342,7 +2354,7 @@ function stepSim(){
    The server runs this same file headlessly and is the authority: we send our
    input record 60×/s and draw whatever it says is true, interpolating between
    snapshots. Sounds arrive as events; particles are derived from them.        */
-const IO={on:false,ws:null,url:'',id:0,prev:null,cur:null,curAt:0,dt:50,online:0,board:[],byId:new Map(),known:new Set(),lastMe:null,name:''};
+const IO={on:false,ws:null,url:'',id:0,prev:null,cur:null,curAt:0,dt:50,online:0,board:[],byId:new Map(),known:new Set(),lastMe:null,name:'',seq:0,hist:[],lastInp:null};
 function ioDiscover(){
   const q=new URLSearchParams(location.search).get('server');
   if(q){ IO.url=q; $('ioUrl').value=q; ioPing(); return; }
@@ -2372,7 +2384,7 @@ function ioJoin(){
 function ioStart(m){
   MODE='io'; SEED=m.seed|0; tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0;
   lights.length=0; ghosts.length=0; pings.length=0; hurtArcs.length=0; for(const k in pend) pend[k]=0;
-  genWorld(); loot=[]; IO.known=new Set(); IO.byId=new Map(); IO.prev=IO.cur=null; IO.lastMe=null;
+  genWorld(); loot=[]; IO.known=new Set(); IO.byId=new Map(); IO.prev=IO.cur=null; IO.lastMe=null; IO.seq=0; IO.hist=[]; IO.lastInp=null;
   players=[]; bots=[];
   P=makeActor(m.x,m.y,false,IO.name); P.id=m.id; equipKit(P,'io'); players=[P];
   IO.id=m.id; IO.on=true; running=true; startT=tNow;
@@ -2380,8 +2392,12 @@ function ioStart(m){
   $('start').style.display='none'; $('over').style.display='none'; $('spect').style.display='none'; document.body.classList.remove('lobby');
   document.body.classList.remove('kitmode');
   addLog('you drift onto the strip — '+(m.online-1)+' others out there');
+  if(touchMode) $('tLeave').style.display='block';
 }
-function ioLeave(){ if(IO.ws){ IO.on=false; IO.ws.onclose=null; IO.ws.close(); IO.ws=null; } running=false; $('board').style.display='none'; }
+function goFullscreen(){ if(!touchMode) return;
+  try{ const el=document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }catch(e){}
+  try{ screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} }
+function ioLeave(){ $('tLeave').style.display='none'; if(IO.ws){ IO.on=false; IO.ws.onclose=null; IO.ws.close(); IO.ws=null; } running=false; $('board').style.display='none'; }
 // actor fields the server ships, unpacked onto persistent local objects so render() works untouched
 function ioActor(r){
   let a=IO.byId.get(r.id);
@@ -2403,7 +2419,14 @@ function ioSnapshot(m){
   for(const r of m.a){ const a=ioActor(r); seen.add(r.id); }
   for(const id of [...IO.byId.keys()]) if(!seen.has(id)) IO.byId.delete(id);
   const me=IO.byId.get(IO.id);
-  if(me){ P.rx=me.rx; P.ry=me.ry; P.px=me.px; P.py=me.py; P.pang=me.pang; P.rang=me.rang; P.dead=me.dead; P.hp=me.hp; P.maxhp=me.maxhp; P.vest=me.vest; P.helm=me.helm; P.light=me.light; P.kills=me.kills; P.streak=me.streak; P.block=me.block; P.reloading=me.reloading; P.hurtFlash=me.hurtFlash; P.stagger=me.stagger; P.exhaust=me.exhaust; P.gunStun=me.gunStun; P.healEnd=me.healEnd; P.healKind=me.healKind; P.fireAt=me.fireAt; P.hsMode=me.hsMode; P.swing=me.swing; P.dashState=me.dashState; P.sneak=me.sneak; }
+  if(me){ P.rx=me.rx; P.ry=me.ry; P.px=me.px; P.py=me.py; P.pang=me.pang; P.rang=me.rang; P.dead=me.dead; P.hp=me.hp; P.maxhp=me.maxhp; P.vest=me.vest; P.helm=me.helm; P.light=me.light; P.kills=me.kills; P.streak=me.streak; P.block=me.block; P.reloading=me.reloading; P.hurtFlash=me.hurtFlash; P.stagger=me.stagger; P.exhaust=me.exhaust; P.gunStun=me.gunStun; P.healEnd=me.healEnd; P.healKind=me.healKind; P.fireAt=me.fireAt; P.hsMode=me.hsMode; P.swing=me.swing; P.sneak=me.sneak;
+    // reconcile: compare the server's position with where WE thought we were when it processed that input
+    const ack=m.me&&m.me.seq; const h=ack!=null ? IO.hist.find(e=>e.seq===ack) : null;
+    if(h){ const ex=me.rx-h.x, ey=me.ry-h.y, e=Math.hypot(ex,ey);
+      if(e>160||P.dead){ P.x=me.rx; P.y=me.ry; P.cx=P.cy=0; IO.hist.length=0; }   // teleport-sized disagreement: snap
+      else { P.cx=(P.cx||0)+ex; P.cy=(P.cy||0)+ey; for(const q of IO.hist) { q.x+=ex; q.y+=ey; } }
+      IO.hist=IO.hist.filter(q=>q.seq>ack); }
+    if(P.dead){ P.x=me.rx; P.y=me.ry; } }
   bots=[...IO.byId.values()].filter(a=>a.id!==IO.id);
   // my private state
   const pm=m.me; if(pm){ P.stam=pm.stam; P.ammo=pm.ammo; P.heals=pm.heals; P.nades=pm.nades; P.bleed=pm.bleed; P.slots=pm.slots; P.sel=pm.sel; P.last=pm.last;
@@ -2440,15 +2463,28 @@ function ioEvent(ev){
 }
 function ioFrame(rdt){
   tNow+=rdt*1000;
-  // interpolate everyone one snapshot behind so movement is smooth
+  // everyone else is interpolated one snapshot behind so their movement is smooth
   const t=IO.cur ? clamp((performance.now()-IO.curAt)/IO.dt,0,1.2) : 1;
-  for(const a of [P,...bots]){ if(a.rx==null) continue;
+  for(const a of bots){ if(a.rx==null) continue;
     const px=a.px==null?a.rx:a.px, py=a.py==null?a.ry:a.py;
     a.x=lerp(px,a.rx,t); a.y=lerp(py,a.ry,t);
-    if(a!==P){ const pa=a.pang==null?a.rang:a.pang; a.ang=pa+adiff(a.rang,pa)*t; } }
-  // my aim is mine, instantly; the rest of my input goes to the server every frame
-  const inp=sampleInput(); P.ang=inp.ang;
-  if(IO.ws&&IO.ws.readyState===1) IO.ws.send(JSON.stringify([inp.mx,inp.my,inp.ang,inp.f,inp.slot]));
+    const pa=a.pang==null?a.rang:a.pang; a.ang=pa+adiff(a.rang,pa)*t; }
+  // me: predicted locally with the sim's own movement code, so a keypress moves me this frame
+  const inp=sampleInput(); P.ang=inp.ang; const seq=++IO.seq;
+  if(!P.dead){
+    const dt=Math.min(rdt,.05), prev=IO.lastInp||EMPTY_INP;
+    if((inp.f&IB.DASH)&&!(prev.f&IB.DASH)) dash(P,inp.mx,inp.my);
+    P.sneak=!!(inp.f&IB.SNEAK);
+    const m=Math.hypot(inp.mx,inp.my), sp=230*speedMul(P)*(tNow<P.lungeT?1.7:1);
+    if(m>0 && P.dashState!=='burst'){ P.vx+=(inp.mx/m)*sp*11*dt; P.vy+=(inp.my/m)*sp*11*dt; P.stepPhase+=dt*9; }
+    const _px=P.x,_py=P.y, fr=Math.pow(.0016,dt);
+    P.x+=P.vx*dt; P.y+=P.vy*dt; P.vx*=fr; P.vy*=fr; collide(P); stepDash(P,dt,_px,_py);
+    // bleed off any correction the server handed us instead of jumping
+    if(P.cx||P.cy){ const k=Math.min(1,dt*9); P.x+=P.cx*k; P.y+=P.cy*k; P.cx-=P.cx*k; P.cy-=P.cy*k; }
+    IO.hist.push({seq,x:P.x,y:P.y}); if(IO.hist.length>120) IO.hist.shift();
+  }
+  IO.lastInp=inp;
+  if(IO.ws&&IO.ws.readyState===1) IO.ws.send(JSON.stringify([inp.mx,inp.my,inp.ang,inp.f,inp.slot,seq]));
   if(hitstop>0) hitstop-=rdt*1000;
   updateParts(rdt);
 }
@@ -2733,7 +2769,7 @@ function showTab(t){ curTab=t; startLabel();
 }
 function openLobby(){ if(IO.on||IO.ws) ioLeave(); $('over').style.display='none'; $('start').style.display='flex'; document.body.classList.add('lobby'); if(NET.on&&!NET.host) showTab('kits'); }
 setInterval(startLabel,500);
-$('btnStart').addEventListener('click',()=>{ A.on(); if(curTab==='io'){ $('netName').value=$('ioName').value; ioJoin(); } else if(NET.on) netStart(); else start(); });
+$('btnStart').addEventListener('click',()=>{ A.on(); goFullscreen(); if(curTab==='io'){ $('netName').value=$('ioName').value; ioJoin(); } else if(NET.on) netStart(); else start(); });
 function startLabel(){ const b=$('btnStart'); if(curTab==='io'){ b.textContent='JOIN THE STRIP'; b.disabled=false; } else if(NET.on&&!NET.host){ b.textContent='HOST STARTS THE MATCH'; b.disabled=true; } else { b.disabled=false; b.textContent= NET.on ? (MODE==='br'?'START — BATTLE ROYALE':'START — ARENA') : (MODE==='br'?'DROP IN':'ENTER ARENA'); } }
 $('btnAgain').addEventListener('click',()=>{A.on();openLobby();});
 const SRV_LOG=[];
@@ -2744,13 +2780,14 @@ if(IS_SERVER){
     init(seed,nbots){ MODE='io'; SEED=seed|0; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); running=true; },
     join(name){ const a=makeActor(0,0,false,name); a.id=++actorN; const sp=findSpawn([...players,...bots]); a.x=sp.x; a.y=sp.y; equipKit(a,'io'); a.streak=0; a.pendInp={...EMPTY_INP}; players.push(a); return a; },
     leave(a){ const i=players.indexOf(a); if(i>=0){ players.splice(i,1); if(!a.dead) dropAll(a); } },
-    input(a,arr){ const f=arr[3]|0; const q=a.pendInp||EMPTY_INP; a.pendInp={mx:+arr[0]||0,my:+arr[1]||0,ang:+arr[2]||0,f:f|(q.f&~IB_HELD),slot:(arr[4]|0)||q.slot}; },
+    input(a,arr){ const f=arr[3]|0; const q=a.pendInp||EMPTY_INP; a.pendInp={mx:+arr[0]||0,my:+arr[1]||0,ang:+arr[2]||0,f:f|(q.f&~IB_HELD),slot:(arr[4]|0)||q.slot,seq:arr[5]|0}; },
     step(){ stepSim(); },
     get state(){ return {players,bots,loot,bullets,nades,obs,tNow,tick,zone}; },
     wep, MELEE, GUNS, ARMOR_NAME,
   };
 }
 document.body.classList.add('lobby'); makeGround(); setupTouch(); buildLobby(); netInit();
+if(location.protocol==='https:' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(!IS_SERVER){ ioDiscover();
   $('ioName').value=localStorage.getItem('bw.name')||''; $('ioName').addEventListener('input',()=>{ localStorage.setItem('bw.name',$('ioName').value); $('netName').value=$('ioName').value; });
   $('btnIoJoin').addEventListener('click',()=>{ A.on(); $('netName').value=$('ioName').value; ioJoin(); }); }
