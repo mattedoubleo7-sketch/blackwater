@@ -2345,7 +2345,7 @@ function stepSim(){
 const IO={on:false,ws:null,url:'',id:0,prev:null,cur:null,curAt:0,dt:50,online:0,board:[],byId:new Map(),known:new Set(),lastMe:null,name:''};
 function ioDiscover(){
   const q=new URLSearchParams(location.search).get('server');
-  if(q){ IO.url=q; $('ioUrl').value=q; return; }
+  if(q){ IO.url=q; $('ioUrl').value=q; ioPing(); return; }
   fetch('server.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{ if(j&&j.url){ IO.url=j.url; $('ioUrl').value=j.url; ioPing(); } }).catch(()=>{});
 }
 function ioPing(){ // ask the server who's on before joining
