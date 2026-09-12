@@ -1825,6 +1825,55 @@ function makeGround(){
     g.moveTo(x,y); g.lineTo(x+rnd(18,-18),y+rnd(18,-18)); g.stroke(); }
   groundPat=ctx.createPattern(c,'repeat');
 }
+
+// melee weapon art (top-down). Origin at the grip hand, the weapon runs along +x.
+function drawMelee(id, len, opt){ opt=opt||{}; const g=opt.grip||0;
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  if(id==='machete'){
+    const L=len, hilt=L*.22;
+    // grip: dark wrapped handle with a small guard
+    ctx.fillStyle='#1d2126'; ctx.beginPath(); ctx.roundRect(-4,-3.2,hilt+4,6.4,2.5); ctx.fill();
+    ctx.strokeStyle='#3a4047'; ctx.lineWidth=1; for(let i=1;i<4;i++){ ctx.beginPath(); ctx.moveTo(i*hilt/4-2,-3); ctx.lineTo(i*hilt/4+1,3); ctx.stroke(); }
+    ctx.fillStyle='#4a5259'; ctx.fillRect(hilt-1,-5.5,3.5,11);
+    // blade: straight spine, belly that widens toward a clipped tip
+    ctx.beginPath(); ctx.moveTo(hilt+2,-3.6); ctx.lineTo(L*.92,-3.9); ctx.lineTo(L,-1.2); ctx.lineTo(L*.96,3.6); ctx.lineTo(L*.7,6.4); ctx.lineTo(hilt+2,4.2); ctx.closePath();
+    ctx.fillStyle='#aab3ba'; ctx.fill(); ctx.strokeStyle='rgba(10,14,18,.75)'; ctx.lineWidth=1.4; ctx.stroke();
+    // bevelled edge on the belly side, dark spine on the other
+    ctx.strokeStyle='#e4ebef'; ctx.lineWidth=1.8; ctx.beginPath(); ctx.moveTo(hilt+5,3.4); ctx.lineTo(L*.7,5.4); ctx.lineTo(L*.95,3); ctx.stroke();
+    ctx.strokeStyle='#6c757c'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(hilt+4,-2.4); ctx.lineTo(L*.9,-2.7); ctx.stroke();
+    // a nick and a glint
+    ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(L*.55,-1.5); ctx.lineTo(L*.66,-1.7); ctx.stroke();
+  } else if(id==='axe'){
+    const L=len;
+    // hickory handle with grain, a rubber grip at the hand
+    ctx.fillStyle='#8a6a44'; ctx.beginPath(); ctx.roundRect(-4,-2.6,L*.78+4,5.2,2); ctx.fill();
+    ctx.strokeStyle='rgba(60,40,20,.55)'; ctx.lineWidth=.9; ctx.beginPath(); ctx.moveTo(4,-.8); ctx.lineTo(L*.7,-1.1); ctx.moveTo(6,1.3); ctx.lineTo(L*.66,1.6); ctx.stroke();
+    ctx.fillStyle='#22262b'; ctx.beginPath(); ctx.roundRect(-4,-3.2,L*.2,6.4,2.5); ctx.fill();
+    // fire-axe head: red painted body, wide bevel one side, pick the other
+    const hx=L*.74;
+    ctx.beginPath(); ctx.moveTo(hx-2,-5); ctx.lineTo(hx+9,-5); ctx.lineTo(hx+15,-11); ctx.lineTo(hx+23,-10);   // to the top corner of the blade
+    ctx.lineTo(hx+26,-3); ctx.lineTo(hx+26,5); ctx.lineTo(hx+23,12); ctx.lineTo(hx+15,13); ctx.lineTo(hx+9,6); ctx.lineTo(hx-2,6); ctx.lineTo(hx-12,3); ctx.lineTo(hx-16,0); ctx.lineTo(hx-12,-3); ctx.closePath();
+    ctx.fillStyle='#b8352b'; ctx.fill(); ctx.strokeStyle='rgba(10,14,18,.8)'; ctx.lineWidth=1.4; ctx.stroke();
+    // the steel edge
+    ctx.beginPath(); ctx.moveTo(hx+23,-10); ctx.lineTo(hx+26,-3); ctx.lineTo(hx+26,5); ctx.lineTo(hx+23,12); ctx.lineTo(hx+19,11); ctx.lineTo(hx+21,1); ctx.lineTo(hx+19,-9); ctx.closePath();
+    ctx.fillStyle='#d9e0e4'; ctx.fill(); ctx.strokeStyle='#f2f6f8'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(hx+24,-8); ctx.lineTo(hx+26.5,1); ctx.lineTo(hx+24,10); ctx.stroke();
+    // pick tip + a scuff on the paint
+    ctx.fillStyle='#4a4f56'; ctx.beginPath(); ctx.moveTo(hx-12,-3); ctx.lineTo(hx-17,0); ctx.lineTo(hx-12,3); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,220,200,.35)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(hx+2,-4); ctx.lineTo(hx+12,-3); ctx.stroke();
+  } else if(id==='crowbar'){
+    const L=len;
+    // hexagonal steel bar: a dark body with a light facet
+    ctx.strokeStyle='#1c2126'; ctx.lineWidth=6.5; ctx.beginPath(); ctx.moveTo(-3,0); ctx.lineTo(L*.8,0); ctx.stroke();
+    ctx.strokeStyle='#3d444b'; ctx.lineWidth=4.5; ctx.beginPath(); ctx.moveTo(-3,0); ctx.lineTo(L*.8,0); ctx.stroke();
+    ctx.strokeStyle='#5c656d'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(0,-1.2); ctx.lineTo(L*.78,-1.2); ctx.stroke();
+    // the hook: curls back with a split claw
+    ctx.strokeStyle='#1c2126'; ctx.lineWidth=6.5; ctx.beginPath(); ctx.moveTo(L*.78,0); ctx.quadraticCurveTo(L+4,-1,L*.96,-11); ctx.stroke();
+    ctx.strokeStyle='#3d444b'; ctx.lineWidth=4.5; ctx.beginPath(); ctx.moveTo(L*.78,0); ctx.quadraticCurveTo(L+4,-1,L*.96,-11); ctx.stroke();
+    ctx.fillStyle='#8c959c'; ctx.beginPath(); ctx.moveTo(L*.93,-13); ctx.lineTo(L*.99,-9); ctx.lineTo(L*.96,-7); ctx.lineTo(L*.905,-9.5); ctx.closePath(); ctx.fill();
+    // flattened chisel at the grip end
+    ctx.fillStyle='#8c959c'; ctx.beginPath(); ctx.moveTo(-3,-2.5); ctx.lineTo(-9,-4); ctx.lineTo(-9,4); ctx.lineTo(-3,2.5); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore(); }
 function drawActor(a, isP){
   const w=wep(a);
   ctx.save(); ctx.translate(a.x,a.y);
@@ -1870,27 +1919,20 @@ function drawActor(a, isP){
     if(a.block){ wa = 0; }
     ctx.save(); ctx.rotate(wa);
     ctx.strokeStyle='#2b3239'; ctx.lineWidth=7;
-    if(a.block){
-      ctx.beginPath(); ctx.moveTo(2,-8); ctx.lineTo(14,-9); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(2,8); ctx.lineTo(14,9); ctx.stroke();
-    } else {
-      ctx.beginPath(); ctx.moveTo(3,-6); ctx.lineTo(12+arm,-4); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(3,6); ctx.lineTo(12+arm,4); ctx.stroke();
-    }
-    // blade
-    const len=d.reach*(a.block?.55:.86);
+    const hL=a.block?[14,-9]:[12+arm,-4], hR=a.block?[14,9]:[12+arm,4];
+    ctx.beginPath(); ctx.moveTo(a.block?2:3,a.block?-8:-6); ctx.lineTo(hL[0],hL[1]); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a.block?2:3,a.block?8:6); ctx.lineTo(hR[0],hR[1]); ctx.stroke();
+    const len=d.reach*.86;
     if(w.id!=='fists'){
-      if(a.block){ ctx.strokeStyle='#b9c3c9'; ctx.lineWidth=5; ctx.beginPath();
-        ctx.moveTo(18,-22); ctx.lineTo(18,22); ctx.stroke(); }
-      else {
-        ctx.strokeStyle = d.cls==='axe' ? '#7d6a52' : '#8d939a'; ctx.lineWidth=5;
-        ctx.beginPath(); ctx.moveTo(12,0); ctx.lineTo(12+len*.55,0); ctx.stroke();
-        ctx.strokeStyle='#c9d2d8'; ctx.lineWidth= d.cls==='axe'?4:3.5;
-        if(d.cls==='axe'){ ctx.beginPath(); ctx.moveTo(12+len*.5,-11); ctx.lineTo(12+len*.62,0);
-          ctx.lineTo(12+len*.5,11); ctx.stroke(); }
-        else { ctx.beginPath(); ctx.moveTo(12+len*.4,0); ctx.lineTo(12+len,0); ctx.stroke(); }
-      }
+      // guard: the weapon held across the body in both hands; otherwise it runs out from the lead hand
+      ctx.save();
+      if(a.block){ ctx.translate(17,14); ctx.rotate(-Math.PI/2); drawMelee(w.id,len*.78); }
+      else { ctx.translate(hR[0]-2,hR[1]-1); ctx.rotate(-.06); drawMelee(w.id,len); }
+      ctx.restore();
     }
+    // knuckles on top of the grip
+    ctx.fillStyle='#343b42'; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=1.2;
+    for(const h of [hL,hR]){ ctx.beginPath(); ctx.arc(h[0],h[1],4.2,0,TAU); ctx.fill(); ctx.stroke(); }
     ctx.restore();
   }
   ctx.restore();
@@ -1985,7 +2027,7 @@ function drawLoot(l){
   ctx.strokeStyle=c; ctx.lineWidth=2; ctx.stroke();
   ctx.fillStyle=c;
   if(l.t==='gun'){ ctx.fillRect(-8,-2,15,4); ctx.fillRect(-8,-4,5,8); }
-  else if(l.t==='melee'){ ctx.fillRect(-7,-1.5,15,3); }
+  else if(l.t==='melee'){ ctx.save(); ctx.translate(-9,2); ctx.rotate(-.5); ctx.scale(.42,.42); drawMelee(l.id, 52); ctx.restore(); }
   else if(l.t==='ammo'){ ctx.fillRect(-5,-6,4,12); ctx.fillRect(1,-6,4,12); }
   else if(l.t==='heal'){ ctx.fillRect(-6,-2,12,4); ctx.fillRect(-2,-6,4,12); }
   else if(l.t==='vest'){ ctx.fillRect(-6,-6,12,12); }
