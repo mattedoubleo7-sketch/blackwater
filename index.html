@@ -184,6 +184,33 @@
   body.touch .lobby{gap:10px} body.touch .lhead h1{font-size:34px} body.touch .panes{padding:12px}
   body.touch .tab{padding:10px 8px;font-size:10px}
   #ioUrl{width:min(300px,100%)} .netrow{flex-wrap:wrap}
+  /* short screens (phones in landscape): scrollable compact lobby, tighter thumb cluster */
+  @media (max-height:520px){
+    .screen{justify-content:flex-start;overflow-y:auto;padding:10px 14px}
+    .lhead h1{font-size:26px} .tagline{display:none} .lobby{gap:8px}
+    .lbody{min-height:0;grid-template-columns:140px 1fr;gap:8px} .panes{padding:10px} .tab{padding:7px 10px;font-size:10px}
+    .card{padding:9px} .card p{display:none} .card h3{margin:0 0 3px} .cards{gap:6px} .row{margin-top:6px}
+    .kitgrid{max-height:none} .lfoot{padding-top:8px} #btnStart{padding:9px 22px}
+  }
+  @media (max-height:420px){
+    body.touch .tbtn{width:50px!important;height:50px!important;font-size:9px;left:auto!important;top:auto!important}
+    body.touch #tFire{width:68px!important;height:68px!important;font-size:11px;right:12px!important;bottom:12px!important}
+    body.touch #tDash{right:90px!important;bottom:12px!important}
+    body.touch #tBlock{right:148px!important;bottom:12px!important}
+    body.touch #tHead{right:12px!important;bottom:90px!important}
+    body.touch #tPick{right:70px!important;bottom:90px!important}
+    body.touch #tReload{right:128px!important;bottom:90px!important}
+    body.touch #tNade{right:12px!important;bottom:148px!important}
+    body.touch #tHeal{right:70px!important;bottom:148px!important}
+    body.touch #tQuiet{right:128px!important;bottom:148px!important}
+    body.touch .tpill{top:6px!important;padding:5px 9px;font-size:9px} body.touch #tEdit{right:10px} body.touch #tLeave{right:86px!important}
+    body.touch #vitals{top:8px;left:110px;width:200px} body.touch #armorRow{font-size:9px}
+    body.touch #top{top:6px} body.touch #alive{font-size:18px} body.touch #aliveLbl,body.touch #zone{font-size:9px;margin-top:1px}
+    body.touch #wep{top:8px;right:150px} body.touch #wepName{font-size:11px} body.touch #ammo{font-size:18px} body.touch #wepNote{display:none}
+    body.touch #slots{top:auto;bottom:8px;left:110px;right:auto;justify-content:flex-start;max-width:44vw} body.touch .slot{padding:5px 7px;font-size:9px}
+    body.touch #mini{width:72px;height:72px;left:10px;right:auto;top:8px} body.touch #board{top:88px;left:10px;width:90px;font-size:8px}
+    body.touch #log{top:auto;bottom:60px;left:10px;font-size:9px;max-width:40vw} body.touch #hint{top:auto;bottom:210px;font-size:10px}
+  }
   body.touch #hint{bottom:auto;top:76px}
   body.touch #log{max-width:38vw;font-size:10px}
 </style>
