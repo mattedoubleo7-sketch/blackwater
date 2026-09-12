@@ -1,0 +1,15 @@
+# One-click public server on Render's free tier: New → Blueprint → this repo.
+# Free instances sleep after 15 min idle and wake on the first connection (~30 s).
+services:
+  - type: web
+    name: blackwater-server
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: BOTS
+        value: "6"
+      - key: MAX
+        value: "16"

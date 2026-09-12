@@ -22,3 +22,17 @@ tabs and the other player sees "waiting for…" until you're back.
 WASD move · mouse aim / left attack (hold with a blade for a heavy) · right guard or ADS ·
 Shift dash · Ctrl quiet · hold T head mode · 1 2 3 / Q weapons · R reload · F pick up ·
 E heal · G hold to cook a frag · V weapon light. Touch controls on phones.
+
+## Public server (.io mode)
+`server/` is an authoritative Node server that runs the game's own simulation headlessly:
+one persistent strip, drop in with a pistol and machete, loot up, drop your kit when you
+die, respawn in 3 s, bots fill the quiet, live leaderboard.
+
+Run it anywhere with Node 18+: `cd server && npm install && node index.js` (port 8765,
+`BOTS` / `MAX` / `SEED` env to tune). Point the game at it with the SERVER field on the
+PUBLIC SERVER tab, `?server=wss://…` in the URL, or by putting the address in `server.json`
+next to `index.html` so everyone who opens the page finds it automatically.
+
+Free 24/7 hosting: create a Render account, **New → Blueprint**, pick this repo — it reads
+`render.yaml` and gives you `wss://blackwater-server-xxxx.onrender.com`; put that in
+`server.json` and push.

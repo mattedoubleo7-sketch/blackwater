@@ -66,20 +66,38 @@
     opacity:0;transition:opacity .22s}
 
   /* screens */
-  .screen{position:absolute;inset:0;background:#05070aee;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;pointer-events:auto;padding:24px;text-align:center}
-  .screen h1{font-size:clamp(30px,7vw,56px);margin:0;color:#e8eef2;letter-spacing:.22em;font-weight:500}
-  .screen h1 em{font-style:normal;color:var(--blood)}
+  .screen{position:absolute;inset:0;background:linear-gradient(180deg,#05070ab8 0%,#05070ae6 45%,#05070af4 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto;padding:24px;text-align:center}
+  #over{background:#05070aee}
+  body.lobby .hud,body.lobby #mini,body.lobby #board,body.lobby #touch .tbtn,body.lobby #touch .tpill{visibility:hidden}
+  .screen h1{font-size:clamp(30px,7vw,56px);margin:0;color:#e8eef2;letter-spacing:.22em;font-weight:500;
+    text-shadow:0 0 28px rgba(232,238,242,.12)}
+  .screen h1 em{font-style:normal;color:var(--blood);text-shadow:0 0 28px rgba(178,53,44,.45)}
   .screen p{max-width:560px;line-height:1.65;color:var(--dim);font-size:13px}
-  .lobby{width:min(720px,94vw);display:flex;flex-direction:column;align-items:center;gap:14px}
-  .tabs{display:flex;gap:2px;border:1px solid #1e262e}
-  .tab{padding:8px 20px;font-size:11px;color:var(--dim);cursor:pointer;letter-spacing:.12em}
-  .tab.sel{background:#151d25;color:#d7dee4}
+  .lobby{width:min(900px,94vw);display:flex;flex-direction:column;align-items:stretch;gap:16px}
+  .lhead{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .tagline{font-size:10px;letter-spacing:.3em;color:var(--dim)} .tagline i{color:var(--blood);font-style:normal;margin:0 6px}
+  .lbody{display:grid;grid-template-columns:172px 1fr;gap:14px;width:100%;min-height:360px;text-align:left}
+  .tabs{display:flex;flex-direction:column;gap:3px;border:0}
+  .tab{padding:12px 14px;font-size:11px;color:var(--dim);cursor:pointer;letter-spacing:.14em;border-left:2px solid #1e262e;background:#0b0f14aa;transition:background .12s,color .12s}
+  .tab u{text-decoration:none;color:#3d4a54;margin-right:10px;font-size:9px;letter-spacing:.08em}
+  .tab:hover{color:#b3bfc7;background:#0f151bcc}
+  .tab.sel{background:#121a21;color:#e8eef2;border-left-color:var(--blood)}
+  .tab.sel u{color:var(--brass)}
+  .panes{background:#0b0f14cc;border:1px solid #1e262e;padding:18px;min-width:0}
+  .panes .pane{display:block}
+  .lfoot{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;border-top:1px solid #1e262e;padding-top:14px}
+  .lfoot .row{margin:0}
+  #btnStart{background:var(--blood);color:#fff;padding:13px 34px;letter-spacing:.2em;box-shadow:0 0 0 1px #d84a3f inset}
+  #btnStart:hover{background:#cf4438}
+  #btnStart:disabled{background:#2b3239;color:#6d7a85;box-shadow:none;cursor:default}
+  @media (max-width:640px){ .lbody{grid-template-columns:1fr} .tabs{flex-direction:row;flex-wrap:wrap} .tab{padding:9px 10px;border-left:0;border-bottom:2px solid #1e262e} .tab.sel{border-bottom-color:var(--blood)} .lfoot{flex-direction:column} }
   .pane{width:100%}
   .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .card{border:1px solid #1e262e;background:#0b0f14;padding:14px;text-align:left;cursor:pointer}
+  .card{border:1px solid #1e262e;background:#0b0f14;padding:14px;text-align:left;cursor:pointer;position:relative;transition:border-color .12s,background .12s}
   .card:hover{border-color:#3b4a56}
   .card.sel{border-color:#7b8f9c;background:#121a21}
+  .card.sel::after{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--brass)}
   .card h3{margin:0 0 6px;font-size:14px;color:#d7dee4;font-weight:500;letter-spacing:.1em}
   .card p{margin:0;font-size:11.5px;line-height:1.55;color:var(--dim);max-width:none}
   .card .meta{margin-top:8px;font-size:10px;color:#4c5a65;letter-spacing:.08em}
@@ -108,7 +126,11 @@
   #endStats{font-size:13px;color:#9aa7b0;margin:10px 0 4px}
 
   /* online */
-  #paneNet{display:flex;flex-direction:column;gap:12px;align-items:center}
+  #paneNet,#paneIo{display:flex;flex-direction:column;gap:12px;align-items:stretch}
+  #paneNet .row,#paneIo .row{justify-content:flex-start}
+  #paneIo input,#paneIo button{pointer-events:auto} #paneIo .card{cursor:default;width:100%}
+  #paneIo input{font:inherit;font-size:12px;color:#d7dee4;background:#0c1015;border:1px solid #2a3540;padding:7px 9px;letter-spacing:.06em}
+  #ioStatus.on{color:var(--ok)!important} #ioStatus.bad{color:var(--blood)!important}
   #paneNet .row{margin-top:0}
   #paneNet input,#paneNet textarea{font:inherit;font-size:12px;color:#d7dee4;background:#0c1015;border:1px solid #2a3540;padding:7px 9px;pointer-events:auto;letter-spacing:.06em}
   #paneNet input:focus,#paneNet textarea:focus{outline:1px solid var(--brass)}
@@ -123,6 +145,12 @@
   #netStatus.bad{color:var(--blood)}
   #spect{position:absolute;left:50%;top:70px;transform:translateX(-50%);font-size:12px;letter-spacing:.14em;color:#cfd8de;background:#0a0d11cc;border:1px solid #5a2a26;padding:6px 14px}
   #netBanner{position:absolute;left:50%;top:44px;transform:translateX(-50%);font-size:11px;letter-spacing:.14em;color:var(--brass);display:none}
+  #board{position:absolute;right:14px;top:156px;width:132px;font-size:10px;color:var(--dim);background:#070a0ecc;border:1px solid #1e262e;padding:6px 8px;display:none;letter-spacing:.04em}
+  #board b{display:block;color:#8d9aa4;font-weight:400;letter-spacing:.14em;margin-bottom:4px}
+  #board div{display:flex;gap:6px;padding:1px 0}
+  #board div span{color:#3d4a54;width:12px}
+  #board div i{font-style:normal;margin-left:auto;color:#cfd8de}
+  #board div.me{color:#e8d9a6}
 
   /* touch */
   #touch{position:absolute;inset:0;display:none}
@@ -178,6 +206,7 @@
 
   <div id="hint"></div>
   <div id="netBanner"></div>
+  <div id="board"></div>
   <div id="dmgv"></div>
 
   <div id="touch">
@@ -195,30 +224,32 @@
 
   <div class="screen" id="start">
     <div class="lobby">
-      <h1>BLACK<em>WATER</em></h1>
-      <div class="tabs">
-        <div class="tab sel" data-tab="modes">MODES</div>
-        <div class="tab" data-tab="kits">KITS</div>
-        <div class="tab" data-tab="ctrl">CONTROLS</div>
-        <div class="tab" data-tab="net">1V1 ONLINE</div>
-      </div>
+      <header class="lhead">
+        <h1>BLACK<em>WATER</em></h1>
+        <div class="tagline">TACTICAL TOP-DOWN BATTLE ROYALE <i>·</i> FOURTEEN ON THE STRIP AT DUSK</div>
+      </header>
+      <div class="lbody">
+        <nav class="tabs">
+          <div class="tab sel" data-tab="modes"><u>01</u>PLAY SOLO</div>
+          <div class="tab" data-tab="io"><u>02</u>PUBLIC SERVER</div>
+          <div class="tab" data-tab="net"><u>03</u>1V1 A FRIEND</div>
+          <div class="tab" data-tab="kits"><u>04</u>KITS</div>
+          <div class="tab" data-tab="ctrl"><u>05</u>CONTROLS</div>
+        </nav>
+        <section class="panes">
 
       <div class="pane" id="paneModes">
         <div class="cards">
           <div class="card sel" data-mode="br">
             <h3>BATTLE ROYALE</h3>
             <p>Fourteen on the strip at dusk, nothing in your hands, fog closing. Loot or die with your fists.</p>
-            <div class="meta">last one breathing</div>
+            <div class="meta">last one breathing · 3400 m strip · 10 armour tiers</div>
           </div>
           <div class="card" data-mode="kit">
             <h3>KIT ARENA</h3>
             <p>Pick a loadout, spawn in, die, spawn again. No looting, no fog, no excuses. First to 15.</p>
-            <div class="meta">respawn · 5 opponents</div>
+            <div class="meta">respawn · 5 opponents · 8 kits</div>
           </div>
-        </div>
-        <div class="row">
-          <span class="lbl">AUDIO</span>
-          <div class="opts" id="volOpts"><b data-vol="0">OFF</b><b data-vol="0.3">LOW</b><b data-vol="0.55" class="sel">MID</b><b data-vol="0.85">LOUD</b></div>
         </div>
         <div class="row" id="rowBots">
           <span class="lbl">OPPONENTS</span>
@@ -244,10 +275,23 @@
           <b>R / F / E</b><span>reload · pick up · heal</span>
           <b>G</b><span>hold to cook a frag</span>
           <b>V</b><span>weapon light</span>
+          <b>—</b><span>rounds lose punch past half range · running opens your spread, sights need a
+                     third of a second to settle · near misses rattle your aim · plates wear out and
+                     heavy plates slow you · switching weapons takes a draw</span>
         </div>
         <p id="touchKeys" style="display:none">Left thumb moves, right thumb aims. FIRE swings or shoots — hold it
            with a blade for the heavy. DASH, GUARD, HEAD and the rest sit on the right; tap MOVE UI to drag them
            anywhere. QUIET kills your footsteps. Ammo and supplies pick themselves up; tap the weapon chips to switch.</p>
+      </div>
+
+      <div class="pane" id="paneIo" style="display:none">
+        <div class="row"><span class="lbl">CALLSIGN</span><input id="ioName" maxlength="12" placeholder="your name"></div>
+        <div class="card" id="cardIo">
+          <h3>PUBLIC STRIP</h3>
+          <p>One persistent map, everyone on it. Drop in with a pistol and a machete, loot up, drop your kit when you go down, respawn in three seconds. Bots fill the quiet stretches.</p>
+          <div class="netrow"><span class="lbl">SERVER</span><input id="ioUrl" placeholder="wss://server address" style="width:300px"><button class="mini" id="btnIoJoin" style="display:none">DROP IN</button></div>
+          <div id="ioStatus" style="font-size:11px;letter-spacing:.1em;color:var(--dim);margin-top:8px">no server address yet</div>
+        </div>
       </div>
 
       <div class="pane" id="paneNet" style="display:none">
@@ -280,7 +324,13 @@
         <div id="netDisc" style="display:none"><button class="mini" id="btnDisc">LEAVE</button></div>
       </div>
 
-      <button id="btnStart">DROP IN</button>
+        </section>
+      </div>
+      <footer class="lfoot">
+        <div class="row"><span class="lbl">AUDIO</span>
+          <div class="opts" id="volOpts"><b data-vol="0">OFF</b><b data-vol="0.3">LOW</b><b data-vol="0.55" class="sel">MID</b><b data-vol="0.85">LOUD</b></div></div>
+        <button id="btnStart">DROP IN</button>
+      </footer>
     </div>
   </div>
   <div id="spect" style="display:none">DOWN — spectating until the match ends</div>
@@ -529,6 +579,16 @@ function armorColor(l){
           '#7d6a3e','#8d7a4a','#b2352c'][l]||'#4a4137';
 }
 const AMMO_COLOR = {'9mm':'#c9a227','12g':'#b2352c','762':'#7fae5a','556':'#6f8fa8'};
+/* realism knobs */
+const DRAW_MS   = {glock:320, mp5:480, m870:640, ak:620, m4:580, mosin:760, melee:260};   // holster + draw
+const ADS_SETTLE= 340;         // ms after raising sights before they're fully steady
+const MOVE_SPREAD=1.4;         // extra hip-fire spread at full run (fraction of base)
+const SUPPRESS_MS=650;         // a near miss rattles you this long
+const FALLOFF_AT=.55;          // damage starts dropping past this fraction of range …
+const FALLOFF_MIN=.6;          // … down to this fraction at max range
+const FLINCH_MS =110;          // a solid bullet hit checks your movement briefly
+const vestHpMax = l => 40+l*28;   // plate integrity — how much it absorbs before it's shredded
+const vestWeight= l => l<=3?1 : l<=6?1-(l-3)*.02 : 1-.06-(l-6)*.035;   // heavy plate is slow plate
 
 /* ───────────────────────── world ───────────────────────── */
 let MAP = 3400;
@@ -551,7 +611,11 @@ const KITS = {
              melee:'machete', gun:'mp5', ammo:150, vest:1, helm:1, hp:80, medkit:1, mods:{spd:1.22,stam:1.6}},
   juggernaut:{name:'JUGGERNAUT',blurb:'Titan plate, AK, and legs made of concrete. Level 10 gear, no mobility.',
              melee:'axe', gun:'ak', ammo:90, vest:10, helm:10, hp:160, bandage:3, mods:{spd:.70,stam:.75}},
+  // what you spawn with on a public server — everything better is on the ground
+  io:       {name:'DRIFTER', blurb:'', melee:'machete', gun:'glock', ammo:30, vest:1, helm:0, bandage:1, hidden:true},
 };
+const KIT_IDS = Object.keys(KITS).filter(k=>!KITS[k].hidden);
+const IS_SERVER = typeof window!=='undefined' && !!window.__IS_SERVER;
 function equipKit(a, id){
   const K=KITS[id]||KITS.duelist; a.kit=id;
   a.slots.melee={id:K.melee||'fists'};
@@ -560,7 +624,7 @@ function equipKit(a, id){
   for(const t in a.ammo) a.ammo[t]=0;
   if(K.gun)  a.ammo[GUNS[K.gun].ammo]  += K.ammo||60;
   if(K.gun2) a.ammo[GUNS[K.gun2].ammo] += K.ammo2||30;
-  a.vest=K.vest||0; a.helm=K.helm||0; a.nades=K.nades||0;
+  a.vest=K.vest||0; a.vestHp=vestHpMax(a.vest); a.helm=K.helm||0; a.nades=K.nades||0;
   a.heals.bandage=K.bandage||0; a.heals.medkit=K.medkit||0;
   a.mods=K.mods||{spd:1,stam:1};
   a.maxhp=K.hp||100; a.hp=a.maxhp; a.bleed=0; a.stam=100;
@@ -631,6 +695,10 @@ function overlaps(x,y,r){
   return false;
 }
 
+function ioRefill(){
+  if(loot.length>170) return;
+  for(let i=0;i<5;i++){ const x=srnd(MAP-80,80), y=srnd(MAP-80,80); if(!overlaps(x,y,20)) spawnLoot(x,y,lootRoll(.5)); }
+}
 function lootRoll(q){
   const r=srand();
   if(r<.17*q) return {t:'gun', id:spick(['glock','mp5','m870','ak','m4','mosin'])};
@@ -642,12 +710,13 @@ function lootRoll(q){
   const a=spick(['9mm','12g','762','556']);
   return {t:'ammo', id:a, n:a==='12g'?srint(4,10):srint(15,40)};
 }
-function spawnLoot(x,y,it){ if(!it)return; loot.push(Object.assign({x,y,vx:0,vy:0,born:tNow},it)); }
+let lootN=0;   // ids let a server tell clients exactly which item went away
+function spawnLoot(x,y,it){ if(!it)return; loot.push(Object.assign({x,y,vx:0,vy:0,born:tNow},it,{lid:++lootN})); }
 
 function genWorld(){
   MAP = MODE==='kit' ? 1700 : 3400;
   const sc = (MAP/3400)**2;
-  obs=[]; loot=[]; bullets=[]; parts=[]; decals=[]; nades=[]; bots=[];
+  obs=[]; loot=[]; bullets=[]; parts=[]; decals=[]; nades=[]; bots=[]; lootN=0;
   // buildings
   let tries=0;
   const placed=[];
@@ -669,7 +738,7 @@ function genWorld(){
     for(let i=0;i<80;i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(free(x,y,20)) spawnLoot(x,y,lootRoll(.35)); }
   borderWalls();
   buildSegs();
-  zone = MODE==='kit'
+  zone = MODE!=='br'
     ? {x:MAP/2,y:MAP/2,r:MAP*1.6,tx:MAP/2,ty:MAP/2,tr:MAP*1.6,stage:0,next:1e12,moving:false,dmg:0}
     : {x:MAP/2,y:MAP/2,r:MAP*.72,tx:MAP/2,ty:MAP/2,tr:MAP*.72,stage:0,next:tNow+26000,moving:false,dmg:.6};
 }
@@ -779,6 +848,8 @@ function speedMul(a){
   if(a.block) m*=.62;
   if(a.swing) m*= a.swing.phase==='wind'?.72:.85;
   if(a.stagger>0) m*=.35;
+  if(tNow<(a.flinch||0)) m*=.55;
+  m*=vestWeight(a.vest||0);
   if(a.healEnd>tNow) m*=.5;
   if(a.hp<35) m*=.92;
   return m;
@@ -787,7 +858,7 @@ function speedMul(a){
 /* ── melee ── */
 function startSwing(a, heavy){
   const w=wep(a); if(w.kind!=='melee') return;
-  if(a.swing||a.stagger>0) return;
+  if(a.swing||a.stagger>0||tNow<(a.drawEnd||0)) return;
   if(a.dashState==='plant'||a.dashState==='burst') return;
   const cost = w.d.stam*(heavy?1.9:1);
   if(a.stam < cost*.6) { if(!a.isBot) A.click(); return; }
@@ -882,16 +953,20 @@ function resolveMelee(att, tgt, s, mult, ang, list){
 function fire(a){
   const w=wep(a); if(w.kind!=='gun') return;
   const g=w.d, s=w.s;
-  if(a.reloading||a.stagger>0||tNow<a.fireAt||tNow<a.gunStun) return;
+  if(a.reloading||a.stagger>0||tNow<a.fireAt||tNow<a.gunStun||tNow<(a.drawEnd||0)) return;
   if(s.rounds<=0){ if(!a.isBot) A.dry(a.x,a.y); tryReload(a); return; }
   a.fireAt = tNow + 60000/g.rpm*(tNow<a.fireSlow?2.9:1);
   s.rounds--;
   const hs = a.hsMode;
   if(hs){ a.hsMode=false; a.hsCd = tNow+HS_CD; }
-  const spread = hs ? 0 : g.spread*(a.ads?.42:1) + a.bloom;
+  const moving=clamp(Math.hypot(a.vx,a.vy)/230,0,1.3);
+  const settle=a.ads ? clamp((tNow-(a.adsAt||0))/ADS_SETTLE,0,1) : 0;
+  const adsMul = a.ads ? lerp(1,.42,settle) : 1;
+  const supp = tNow<(a.suppress||0) ? 1.6 : 1;
+  const spread = hs ? 0 : (g.spread*adsMul*(1+MOVE_SPREAD*moving*(a.ads?.35:1)) + a.bloom)*supp;
   for(let i=0;i<g.pellets;i++){
     const ang = a.ang + srnd(spread,-spread);
-    bullets.push({x:a.x+Math.cos(a.ang)*26, y:a.y+Math.sin(a.ang)*26,
+    bullets.push({x:a.x+Math.cos(a.ang)*26, y:a.y+Math.sin(a.ang)*26, x0:a.x, y0:a.y, range:g.range,
       dx:Math.cos(ang), dy:Math.sin(ang), sp:g.vel, dmg:g.dmg, own:a, life:g.range/g.vel, id:w.id, hs});
   }
   a.bloom = Math.min(.16, a.bloom + g.recoil);
@@ -906,7 +981,8 @@ function tryReload(a){
   const w=wep(a); if(w.kind!=='gun'||a.reloading) return;
   const g=w.d, s=w.s;
   if(s.rounds>=g.mag || a.ammo[g.ammo]<=0) return;
-  a.reloading=true; a.reloadEnd=tNow+g.reload; a.swing=null;
+  const onMove=Math.hypot(a.vx,a.vy)>120 ? 1.35 : 1;   // fumbling a magazine at a run
+  a.reloading=true; a.reloadEnd=tNow+g.reload*onMove; a.swing=null;
   A.reload(a.x,a.y,'out');
 }
 function stepReload(a){
@@ -943,7 +1019,10 @@ function damage(t, dmg, src, type, crit){
   const headish = type==='bullet' && srand()<.14;
   if(type==='head'){ /* head rounds skip the vest; the helmet was applied in headshot() */ }
   else if(headish && t.helm) dmg *= 1-(HELM_MIT[t.helm]||0);
-  else if(t.vest) dmg *= 1-(VEST_MIT[t.vest]||0);
+  else if(t.vest){ const mit=dmg*(VEST_MIT[t.vest]||0); dmg-=mit;
+    t.vestHp=(t.vestHp==null?vestHpMax(t.vest):t.vestHp)-mit;   // the plate eats what it stopped
+    if(t.vestHp<=0){ t.vest=0; t.vestHp=0; if(t===P) flash('vest shredded'); A.armor(t.x,t.y); for(let i=0;i<8;i++) spark(t.x,t.y,rnd(TAU),1.2); } }
+  if(type==='bullet' && dmg>=15) t.flinch=tNow+FLINCH_MS;
   t.hp -= dmg; t.hurtFlash=tNow+140;
   if(dmg>16 && srand()<.5) t.bleed = Math.max(t.bleed, dmg>45?6:3.2);
   if(t.healEnd>tNow){ t.healEnd=0; t.healKind=null; }
@@ -954,17 +1033,18 @@ function damage(t, dmg, src, type, crit){
     const v=document.getElementById('dmgv'); v.style.opacity=clamp(dmg/45,.25,1);
     setTimeout(()=>v.style.opacity=0,110);
   }
-  if(t.hp<=0 && MODE==='kit'){
-    t.dead=true; t.hp=0; t.respawnAt=tNow+2400;
+  if(t.hp<=0 && MODE!=='br'){
+    t.dead=true; t.hp=0; t.respawnAt=tNow+(MODE==='io'?3000:2400);
     A.down(t.x,t.y); blood(t.x,t.y,rnd(TAU),26);
+    if(MODE==='io'){ dropAll(t); t.streak=0; }          // on a public server your kit hits the floor
     if(src && src!==t){
-      src.kills++;
+      src.kills++; src.streak=(src.streak||0)+1;
       if(src===P){ kills++; addLog(`you killed ${t.name} (${kills}/${KIT_TARGET})`,true); }
       else if(src.isBot){ botScore++; if(t===P) addLog(`${src.name} killed you (${botScore}/${KIT_TARGET})`); }
       else addLog(t===P ? `${src.name} killed you (${src.kills}/${KIT_TARGET})` : `${src.name} killed ${t.name} (${src.kills}/${KIT_TARGET})`);
     }
     const best=Math.max(botScore, ...players.map(q=>q.kills));
-    if(best>=KIT_TARGET) endGame(P.kills>=KIT_TARGET);
+    if(MODE==='kit' && best>=KIT_TARGET) endGame(P.kills>=KIT_TARGET);
     return;
   }
   if(t.hp<=0){
@@ -986,7 +1066,7 @@ function dropAll(a){
   if(a.slots.secondary) spawnLoot(a.x+srnd(30,-30),a.y+srnd(30,-30),{t:'gun',id:a.slots.secondary.id,rounds:a.slots.secondary.rounds});
   if(a.slots.melee && a.slots.melee.id!=='fists') spawnLoot(a.x+srnd(30,-30),a.y+srnd(30,-30),{t:'melee',id:a.slots.melee.id});
   for(const k in a.ammo) if(a.ammo[k]>0) spawnLoot(a.x+srnd(40,-40),a.y+srnd(40,-40),{t:'ammo',id:k,n:a.ammo[k]});
-  if(a.vest) spawnLoot(a.x+srnd(30,-30),a.y+srnd(30,-30),{t:'vest',lvl:a.vest});
+  if(a.vest) spawnLoot(a.x+srnd(30,-30),a.y+srnd(30,-30),{t:'vest',lvl:a.vest,hp:a.vestHp});
   if(a.helm) spawnLoot(a.x+srnd(30,-30),a.y+srnd(30,-30),{t:'helm',lvl:a.helm});
   if(a.nades>0) spawnLoot(a.x+srnd(30,-30),a.y+srnd(30,-30),{t:'nade',n:a.nades});
   for(const k in a.heals) if(a.heals[k]>0) spawnLoot(a.x+srnd(35,-35),a.y+srnd(35,-35),{t:'heal',id:k,n:a.heals[k]});
@@ -1067,8 +1147,9 @@ function noise(a, r){
     if(dist2(a.x,a.y,b.x,b.y) < r*r) b.ai.heard={x:a.x,y:a.y,t:tNow};
   }
   // what you'd hear but can't see, drawn where you'd place it
-  if(a!==P && P && !P.dead && dist2(a.x,a.y,P.x,P.y) < Math.min(r,760)**2 && !los(P.x,P.y,a.x,a.y))
-    pings.push({x:a.x,y:a.y,t0:tNow,r:Math.min(r,760)>600?52:30});
+  const hear=Math.min(r, r>=1400?1500:760);
+  if(a!==P && P && !P.dead && dist2(a.x,a.y,P.x,P.y) < hear*hear && !los(P.x,P.y,a.x,a.y))
+    pings.push({x:a.x,y:a.y,t0:tNow,r:hear>600?52:30});
 }
 
 /* ── grenades ── */
@@ -1092,7 +1173,7 @@ function boomNade(n){
   }
   for(const o of obs) if(o.kind==='crate' && dist2(o.x+o.w/2,o.y+o.h/2,n.x,n.y)<190*190) o.hp=0;
   for(let i=0;i<44;i++) spark(n.x,n.y,rnd(TAU),2.4);
-  if(dist2(P.x,P.y,n.x,n.y)<700*700) shake=Math.max(shake, 22*(1-Math.hypot(P.x-n.x,P.y-n.y)/700));
+  if(P && dist2(P.x,P.y,n.x,n.y)<700*700) shake=Math.max(shake, 22*(1-Math.hypot(P.x-n.x,P.y-n.y)/700));
   noise({x:n.x,y:n.y}, 2200);
 }
 
@@ -1110,6 +1191,7 @@ addEventListener('keydown',e=>{
   if(k==='f') pend.pick=1;
   if(k==='e') pend.heal=1;
   if(k==='v') pend.light=1;
+  if(k==='escape' && IO.on){ ioLeave(); openLobby(); }   // leave a public server
   if((k==='shift'||e.code==='ShiftLeft'||e.code==='ShiftRight') && !shiftLatch){ shiftLatch=true; pend.dash=1; }
 });
 addEventListener('keyup',e=>{
@@ -1130,6 +1212,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 /* ── the input record: everything a player can do in one tick, keyboard, touch or network ── */
 const IB={L:1,R:2,SNEAK:4,HS:8,DASH:16,RELOAD:32,PICK:64,HEAL:128,NADE:256,LIGHT:512,AP:1024};
 const EMPTY_INP={mx:0,my:0,ang:0,f:0,slot:0};
+const IB_HELD=IB.L|IB.R|IB.SNEAK|IB.HS|IB.NADE|IB.AP;   // bits that mean "still holding", not "pressed once"
 const pend={dash:0,reload:0,pick:0,heal:0,light:0,slot:0};   // one-shots queued by the handlers
 const TB={fire:false,r:false,sneak:false,hs:false,nade:false};  // touch buttons held
 function sampleInput(){
@@ -1194,7 +1277,9 @@ function applyInput(a, inp, dt){
   if(m>0 && a.dashState!=='burst'){ a.vx+=(inp.mx/m)*sp*11*dt; a.vy+=(inp.my/m)*sp*11*dt; a.stepPhase+=dt*9; }
   a.hsMode = a.hsHold && gunNow && tNow>a.hsCd && !a.reloading && tNow>a.gunStun
              && wep(a).s.rounds>0 && a.stagger===0;
-  a.ads = (!!(inp.f&IB.R) && gunNow) || a.hsMode;
+  const adsNow = (!!(inp.f&IB.R) && gunNow) || a.hsMode;
+  if(adsNow && !a.ads) a.adsAt=tNow;
+  a.ads = adsNow;
   if(a.block && gunNow) a.block=0;
   if(a.block){ a.stam-=6*dt; if(a.stam<=0){a.block=0;a.stagger=tNow+300;} }
   // firing
@@ -1209,7 +1294,8 @@ function applyInput(a, inp, dt){
 }
 function selectSlot(a,s){
   if(!a||!a.slots[s]&&s!=='melee') return;
-  if(a.sel!==s){ a.last=a.sel; a.sel=s; a.reloading=false; a.swing=null; a.bloom=0; a.block=0; if(a===P) A.click(); }
+  if(a.sel!==s){ a.last=a.sel; a.sel=s; a.reloading=false; a.swing=null; a.bloom=0; a.block=0;
+    a.drawEnd=tNow+(DRAW_MS[(a.slots[s]||{}).id]||DRAW_MS.melee); a.adsAt=0; if(a===P) A.click(); }
 }
 function startHeal(a){
   if(a.healEnd>tNow) return;
@@ -1249,7 +1335,7 @@ function pickup(a,l){
     a.slots.melee={id:l.id}; selectSlot(a,'melee'); msg=MELEE[l.id].name;
   }
   else if(l.t==='ammo'){ a.ammo[l.id]+=l.n; msg=`${l.n} ${l.id}`; }
-  else if(l.t==='vest'){ if(l.lvl<=a.vest){took=false;} else { if(a.vest)spawnLoot(a.x+srnd(40,-40),a.y,{t:'vest',lvl:a.vest}); a.vest=l.lvl; msg=`vest ${l.lvl} ${ARMOR_NAME[l.lvl]}`; if(l.lvl>=8&&a===P) addLog('you found '+ARMOR_NAME[l.lvl]+' plate',true);} }
+  else if(l.t==='vest'){ if(l.lvl<=a.vest){took=false;} else { if(a.vest)spawnLoot(a.x+srnd(40,-40),a.y,{t:'vest',lvl:a.vest,hp:a.vestHp}); a.vest=l.lvl; a.vestHp=l.hp!=null?l.hp:vestHpMax(l.lvl); msg=`vest ${l.lvl} ${ARMOR_NAME[l.lvl]}`; if(l.lvl>=8&&a===P) addLog('you found '+ARMOR_NAME[l.lvl]+' plate',true);} }
   else if(l.t==='helm'){ if(l.lvl<=a.helm){took=false;} else { if(a.helm)spawnLoot(a.x+srnd(40,-40),a.y,{t:'helm',lvl:a.helm}); a.helm=l.lvl; msg=`helm ${l.lvl} ${ARMOR_NAME[l.lvl]}`; if(l.lvl>=8&&a===P) addLog('you found an '+ARMOR_NAME[l.lvl]+' helm',true);} }
   else if(l.t==='heal'){ a.heals[l.id]+=(l.n||1); msg=l.id; }
   else if(l.t==='nade'){ a.nades+=(l.n||1); msg='frag'; }
@@ -1364,7 +1450,7 @@ function respawn(a){
   a.x=sp.x; a.y=sp.y; a.vx=a.vy=0; a.dead=false; a.bleed=0;
   a.swing=null; a.block=0; a.stagger=0; a.gunStun=0; a.reloading=false;
   a.hsCd=0; a.fireSlow=0; a.dashCd=0; a.respawnAt=0;
-  equipKit(a, a.kit || (a===P?MYKIT:spick(Object.keys(KITS))));
+  equipKit(a, MODE==='io' ? 'io' : (a.kit || (a===P?MYKIT:spick(KIT_IDS))));
   for(let i=0;i<10;i++) spark(a.x,a.y,rnd(TAU),1.2);
   flashLight(a.x,a.y,150,240,'#9fd4ff');
 }
@@ -1379,7 +1465,7 @@ function spawnBots(n){
     b.skill=skill;
     if(MODE==='kit'){
       b.ai.react=lerp(420,140,skill); b.ai.aimErr=lerp(.20,.035,skill);
-      equipKit(b, spick(Object.keys(KITS)));
+      equipKit(b, spick(KIT_IDS));
       bots.push(b); continue;
     }
     b.ai.react = lerp(420,140,skill);
@@ -1387,7 +1473,7 @@ function spawnBots(n){
     if(srand()<.75) b.slots.primary={id:spick(['glock','mp5','m870','ak','m4','mosin']), rounds:GUNS.glock.mag};
     if(b.slots.primary) b.slots.primary.rounds=GUNS[b.slots.primary.id].mag;
     if(srand()<.6) b.slots.melee={id:spick(['crowbar','machete','axe'])};
-    b.vest=srand()<.55?Math.min(rollArmorLvl(),6):0; b.helm=srand()<.4?Math.min(rollArmorLvl(),6):0;
+    b.vest=srand()<.55?Math.min(rollArmorLvl(),6):0; b.vestHp=vestHpMax(b.vest); b.helm=srand()<.4?Math.min(rollArmorLvl(),6):0;
     for(const k in b.ammo) b.ammo[k]=srint(20,70);
     b.heals.bandage=srint(0,3); b.nades=srand()<.4?srint(1,2):0;
     b.sel = b.slots.primary?'primary':'melee'; b.last='melee';
@@ -1483,7 +1569,7 @@ function botThink(b,dt){
         mx+=Math.cos(strafe)*.75; my+=Math.sin(strafe)*.75;
       }
       if(srand()<dt*.9) ai.strafe*=-1;
-      b.ads = d>380 && srand()<.8;
+      { const want=d>380 && srand()<.8; if(want&&!b.ads) b.adsAt=tNow; b.ads=want; }
       if(b.slots.primary.rounds<=0) tryReload(b);
       else if(tNow-ai.seen<160 && d < g.range && tNow>ai.nextShot && los(b.x,b.y,T.x,T.y)){
         const err=ai.aimErr*(T.light?.7:1)*(b.ads?.7:1);
@@ -1541,7 +1627,7 @@ function updateActor(a,dt,list){
   if(a.dead) return;
   if(a.stagger<tNow) a.stagger=0;
   // stamina — once it bottoms out you're winded until it recovers to 35
-  if(tNow>a.staDelay) a.stam=Math.min(100, a.stam + (a.block?9:26)*dt*((a.mods&&a.mods.stam)||1));
+  if(tNow>a.staDelay) a.stam=Math.min(100, a.stam + (a.block?9:26)*dt*((a.mods&&a.mods.stam)||1)*(.7+.3*vestWeight(a.vest||0)));
   a.stam=clamp(a.stam,0,100);
   if(a.stam<=0.5) a.exhaust=true;
   else if(a.exhaust && a.stam>=35) a.exhaust=false;
@@ -1596,7 +1682,9 @@ function updateBullets(dt){
       const px=b.x+b.dx*clamp(proj,0,step), py=b.y+b.dy*clamp(proj,0,step);
       if(dist2(px,py,t.x,t.y) < hr*hr){
         if(b.hs){ headshot(t,b.own); b.resolved=true; }
-        else { damage(t,b.dmg*srnd(1.06,.94),b.own,'bullet'); blood(px,py,Math.atan2(b.dy,b.dx),7);
+        else { const flown=Math.hypot(px-b.x0,py-b.y0)/b.range;   // energy bleeds off with distance
+               const fall= flown<=FALLOFF_AT ? 1 : lerp(1,FALLOFF_MIN,(flown-FALLOFF_AT)/(1-FALLOFF_AT));
+               damage(t,b.dmg*fall*srnd(1.06,.94),b.own,'bullet'); blood(px,py,Math.atan2(b.dy,b.dx),7);
                if(b.own===P) A.hit(); }
         hit=true; break;
       }
@@ -1616,9 +1704,12 @@ function updateBullets(dt){
         }
       }
     }
-    if(!hit && !b.whizzed && b.own!==P && P && !P.dead){
-      const ex=P.x-b.x, ey=P.y-b.y, pr=clamp(ex*b.dx+ey*b.dy,0,step);
-      if(dist2(b.x+b.dx*pr, b.y+b.dy*pr, P.x,P.y) < 95*95){ b.whizzed=true; A.whizz(P.x,P.y); }
+    if(!hit && !b.whizzed){
+      // a round snapping past suppresses whoever it nearly hit (and you hear it)
+      for(const t of list){ if(t===b.own||t.dead) continue;
+        const ex=t.x-b.x, ey=t.y-b.y, pr=clamp(ex*b.dx+ey*b.dy,0,step);
+        if(dist2(b.x+b.dx*pr, b.y+b.dy*pr, t.x,t.y) < 95*95){ b.whizzed=true; t.suppress=tNow+SUPPRESS_MS;
+          if(t===P){ A.whizz(P.x,P.y); shake=Math.max(shake,2.5); } break; } }
     }
     b.x=nx; b.y=ny; b.life-=dt;
     if(hit||b.life<=0||b.x<0||b.y<0||b.x>MAP||b.y>MAP){
@@ -1630,7 +1721,7 @@ function updateBullets(dt){
 function breakCrate(o){
   const i=obs.indexOf(o); if(i<0)return;
   obs.splice(i,1); buildSegs();
-  spawnLoot(o.x+o.w/2,o.y+o.h/2,lootRoll(.8));
+  if(!IO.on) spawnLoot(o.x+o.w/2,o.y+o.h/2,lootRoll(.8));   // a client takes the server's word for loot
   for(let k=0;k<12;k++) parts.push({x:o.x+o.w/2,y:o.y+o.h/2,vx:rnd(280,-280),vy:rnd(280,-280),
     life:.5,max:.5,c:'#8a6a42',s:rnd(4,2)});
   A.armor(o.x+o.w/2,o.y+o.h/2);
@@ -1641,7 +1732,7 @@ function updateZone(dt){
     zone.r=lerp(zone.r,zone.tr,k); zone.x=lerp(zone.x,zone.tx,k); zone.y=lerp(zone.y,zone.ty,k);
     if(Math.abs(zone.r-zone.tr)<6){ zone.r=zone.tr; zone.x=zone.tx; zone.y=zone.ty;
       zone.moving=false; zone.next=tNow+Math.max(13000, 24000-zone.stage*2400); }
-  } else if(MODE!=='kit' && tNow>zone.next && zone.r>110){
+  } else if(MODE==='br' && tNow>zone.next && zone.r>110){
     zone.stage++; zone.moving=true;
     zone.tr=Math.max(90, zone.r*srnd(.62,.52));
     const off=(zone.r-zone.tr)*srnd(.85,.2), a=srnd(TAU);
@@ -2100,6 +2191,7 @@ function drawMini(){
 /* ───────────────────────── hud ───────────────────────── */
 const $=id=>document.getElementById(id);
 function addLog(t,kill){
+  if(IS_SERVER){ SRV_LOG.push(t); return; }
   const d=document.createElement('div'); d.textContent=t; if(kill)d.className='kill';
   $('log').appendChild(d);
   while($('log').children.length>6) $('log').removeChild($('log').firstChild);
@@ -2107,15 +2199,15 @@ function addLog(t,kill){
   setTimeout(()=>d.remove(),6200);
 }
 let hintT=0;
-function flash(t){ const h=$('hint'); h.textContent=t; h.style.display='block'; hintT=tNow+1300; }
-function updAlive(){ $('alive').textContent=alive; }
+function flash(t){ if(IS_SERVER) return; const h=$('hint'); h.textContent=t; h.style.display='block'; hintT=tNow+1300; }
+function updAlive(){ if(!IS_SERVER) $('alive').textContent=alive; }
 function hud(){
   $('hp').querySelector('i').style.transform='scaleX('+(P.hp/P.maxhp)+')';
   $('hp').classList.toggle('hurt', P.hp<35);
   $('sta').querySelector('i').style.transform='scaleX('+(P.stam/100)+')';
   $('sta').classList.toggle('spent', P.exhaust);
   $('sta').querySelector('b').textContent = P.exhaust? 'WINDED' : 'STAMINA';
-  $('aVest').textContent = P.vest? 'V'+P.vest+' '+ARMOR_NAME[P.vest] : 'no vest';
+  $('aVest').textContent = P.vest? 'V'+P.vest+' '+ARMOR_NAME[P.vest]+' '+Math.max(1,Math.round(100*(P.vestHp==null?1:P.vestHp/vestHpMax(P.vest))))+'%' : 'no vest';
   $('aVest').className=P.vest?'on':'';
   $('aVest').style.color = P.vest>=8?'#e0b44a':'';
   $('aHelm').textContent = P.helm? 'H'+P.helm+' '+ARMOR_NAME[P.helm] : 'no helm';
@@ -2130,6 +2222,8 @@ function hud(){
     $('ammo').innerHTML = w.s.rounds+' <small>/ '+P.ammo[w.d.ammo]+'</small>';
     $('wepNote').textContent =
       tNow<P.gunStun ? 'WEAPON JARRED' :
+      tNow<(P.drawEnd||0) ? 'drawing…' :
+      tNow<(P.suppress||0) ? 'SUPPRESSED' :
       P.hsMode ? 'HEAD — hold steady' :
       tNow<P.fireSlow ? 'slowed' :
       P.sneak ? 'moving quiet' :
@@ -2153,7 +2247,15 @@ function hud(){
   S.innerHTML=html;
 
   const zEl=$('zone');
-  if(MODE==='kit'){
+  if(MODE==='io'){
+    $('alive').textContent = P.kills|0;
+    $('aliveLbl').textContent = 'kills · streak '+(P.streak|0);
+    zEl.textContent = P.dead ? 'respawning…' : (IO.online+' on the strip');
+    zEl.className = P.dead?'warn':'';
+    const B=$('board'); B.style.display='block';
+    B.innerHTML='<b>TOP</b>'+IO.board.map((r,i)=>`<div${r.me?' class="me"':''}><span>${i+1}</span>${r.name}<i>${r.kills}</i></div>`).join('');
+  }
+  else if(MODE==='kit'){
     $('alive').textContent = kills+' — '+Math.max(botScore, ...players.filter(q=>q!==P).map(q=>q.kills));
     $('aliveLbl').textContent = 'first to '+KIT_TARGET;
     zEl.textContent = P.dead ? 'respawning…' : (KITS[MYKIT]?KITS[MYKIT].name:'');
@@ -2180,10 +2282,34 @@ function hud(){
 /* ───────────────────────── loop ───────────────────────── */
 let lastT=0, acc=0, tick=0;
 const STEP=1/60;   // the sim runs in fixed 60 Hz ticks so two machines step identically
+let menuWorld=null, menuT=0;
+function drawMenuBg(rdt){
+  if(!menuWorld){ const keepMode=MODE, keepSeed=SEED; MODE='br'; SEED=20260911; genWorld(); menuWorld={obs,MAP,zone}; MODE=keepMode; SEED=keepSeed; }
+  menuT+=rdt;
+  const M=menuWorld.MAP, z=touchMode?.34:.5;
+  const cx=M/2+Math.cos(menuT*.06)*520, cy=M/2+Math.sin(menuT*.045)*420;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle='#05070a'; ctx.fillRect(0,0,VW,VH);
+  ctx.save(); ctx.scale(z,z); ctx.translate(-cx+VW/z/2, -cy+VH/z/2);
+  const L=cx-VW/z/2-80, R=cx+VW/z/2+80, T=cy-VH/z/2-80, B=cy+VH/z/2+80;
+  ctx.fillStyle=groundPat; ctx.fillRect(L,T,R-L,B-T);
+  const vis=o=>o.s==='r'?(o.x<R&&o.x+o.w>L&&o.y<B&&o.y+o.h>T):(o.x+o.r>L&&o.x-o.r<R&&o.y+o.r>T&&o.y-o.r<B);
+  for(const o of menuWorld.obs) if(o.floor&&vis(o)) drawObstacle(o);
+  for(const o of menuWorld.obs) if(!o.floor&&vis(o)) drawObstacle(o);
+  // the fog, breathing
+  const fr=M*.36+Math.sin(menuT*.35)*90;
+  ctx.save(); ctx.beginPath(); ctx.rect(L,T,R-L,B-T); ctx.arc(M/2,M/2,fr,0,TAU,true); ctx.fillStyle='rgba(120,26,20,.22)'; ctx.fill('evenodd'); ctx.restore();
+  ctx.strokeStyle='rgba(220,90,70,.55)'; ctx.lineWidth=3/z; ctx.beginPath(); ctx.arc(M/2,M/2,fr,0,TAU); ctx.stroke();
+  ctx.restore();
+  const g=ctx.createRadialGradient(VW/2,VH/2,VH*.2,VW/2,VH/2,VH*.9); g.addColorStop(0,'rgba(5,7,10,0)'); g.addColorStop(1,'rgba(5,7,10,.85)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+}
 function frame(ts){
+  if(IS_SERVER) return;
   requestAnimationFrame(frame);
   const rdt = Math.min(.1,(ts-lastT)/1000||0); lastT=ts;
-  if(!running){ return; }
+  if(!running){ if($('start').style.display!=='none') drawMenuBg(rdt); return; }
+  if(IO.on){ ioFrame(rdt); render(); hud(); return; }
   acc+=rdt; let n=0;
   while(acc>=STEP && n<5){
     if(NET.on && !netReady()) break;      // lockstep: the other side's input for this tick isn't here yet
@@ -2194,19 +2320,137 @@ function frame(ts){
 }
 function stepSim(){
   const dt=STEP;
-  if(hitstop>0){ hitstop-=dt*1000; tNow+=dt*1000*.12; tick++; return; }
+  if(hitstop>0 && !IS_SERVER){ hitstop-=dt*1000; tNow+=dt*1000*.12; tick++; return; }
   tNow+=dt*1000;
   const list=[...players,...bots];
-  if(MODE==='kit') for(const a of list) if(a.dead && a.respawnAt && tNow>a.respawnAt) respawn(a);
+  if(MODE!=='br') for(const a of list) if(a.dead && a.respawnAt && tNow>a.respawnAt) respawn(a);
+  if(MODE==='io' && tick%900===0) ioRefill();          // the strip restocks itself every 15 s
   for(let i=0;i<players.length;i++){
-    const inp = NET.on ? netInput(i,tick) : (players[i]===P ? sampleInput() : EMPTY_INP);
-    applyInput(players[i], inp, dt);
+    const q=players[i];
+    const inp = NET.on ? netInput(i,tick) : IS_SERVER ? (q.pendInp||EMPTY_INP) : (q===P ? sampleInput() : EMPTY_INP);
+    applyInput(q, inp, dt);
+    if(IS_SERVER && q.pendInp) q.pendInp={mx:inp.mx,my:inp.my,ang:inp.ang,f:inp.f&IB_HELD,slot:0};   // one-shots are spent
   }
   for(const b of bots) if(!b.dead) botThink(b,dt);
   for(const a of list) updateActor(a,dt,list);
   updateBullets(dt); updateNades(dt); updateParts(dt); updateZone(dt);
   tick++;
   if(NET.on) netAfterTick();
+}
+
+/* ───────────────────────── public servers (.io) ─────────────────────────
+   The server runs this same file headlessly and is the authority: we send our
+   input record 60×/s and draw whatever it says is true, interpolating between
+   snapshots. Sounds arrive as events; particles are derived from them.        */
+const IO={on:false,ws:null,url:'',id:0,prev:null,cur:null,curAt:0,dt:50,online:0,board:[],byId:new Map(),known:new Set(),lastMe:null,name:''};
+function ioDiscover(){
+  const q=new URLSearchParams(location.search).get('server');
+  if(q){ IO.url=q; $('ioUrl').value=q; return; }
+  fetch('server.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{ if(j&&j.url){ IO.url=j.url; $('ioUrl').value=j.url; ioPing(); } }).catch(()=>{});
+}
+function ioPing(){ // ask the server who's on before joining
+  try{ const ws=new WebSocket(IO.url); ws.onopen=()=>ws.send('{"k":"ping"}');
+    ws.onmessage=e=>{ const j=JSON.parse(e.data); if(j.k==='pong'){ $('ioStatus').textContent=j.online+' on the strip right now'; $('ioStatus').className='on'; } ws.close(); };
+    ws.onerror=()=>{ $('ioStatus').textContent='server is asleep or unreachable'; $('ioStatus').className='bad'; };
+  }catch(e){}
+}
+function ioJoin(){
+  const url=($('ioUrl').value||IO.url).trim(); if(!url){ $('ioStatus').textContent='no server address'; return; }
+  IO.name=($('netName').value.trim()||'drifter').slice(0,12);
+  $('ioStatus').textContent='connecting…'; $('ioStatus').className='';
+  let ws; try{ ws=new WebSocket(url); }catch(e){ $('ioStatus').textContent='bad address'; $('ioStatus').className='bad'; return; }
+  IO.ws=ws;
+  ws.onopen=()=>{ ws.send(JSON.stringify({k:'join',name:IO.name})); };
+  ws.onerror=()=>{ $('ioStatus').textContent='could not reach the server'; $('ioStatus').className='bad'; };
+  ws.onclose=()=>{ if(IO.on){ IO.on=false; running=false; endGame(false); $('overTitle').innerHTML='CONNECTION <em>LOST</em>'; $('overSub').textContent='the server went away'; $('endStats').textContent=(P?P.kills:0)+' kills'; } };
+  ws.onmessage=e=>{ const m=JSON.parse(e.data);
+    if(m.k==='init') ioStart(m);
+    else if(m.k==='s') ioSnapshot(m);
+    else if(m.k==='full'){ $('ioStatus').textContent='server is full ('+m.max+')'; $('ioStatus').className='bad'; ws.close(); }
+  };
+}
+function ioStart(m){
+  MODE='io'; SEED=m.seed|0; tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0;
+  lights.length=0; ghosts.length=0; pings.length=0; hurtArcs.length=0; for(const k in pend) pend[k]=0;
+  genWorld(); loot=[]; IO.known=new Set(); IO.byId=new Map(); IO.prev=IO.cur=null; IO.lastMe=null;
+  players=[]; bots=[];
+  P=makeActor(m.x,m.y,false,IO.name); P.id=m.id; equipKit(P,'io'); players=[P];
+  IO.id=m.id; IO.on=true; running=true; startT=tNow;
+  cam.x=P.x-VWw/2; cam.y=P.y-VHw/2;
+  $('start').style.display='none'; $('over').style.display='none'; $('spect').style.display='none'; document.body.classList.remove('lobby');
+  document.body.classList.remove('kitmode');
+  addLog('you drift onto the strip — '+(m.online-1)+' others out there');
+}
+function ioLeave(){ if(IO.ws){ IO.on=false; IO.ws.onclose=null; IO.ws.close(); IO.ws=null; } running=false; $('board').style.display='none'; }
+// actor fields the server ships, unpacked onto persistent local objects so render() works untouched
+function ioActor(r){
+  let a=IO.byId.get(r.id);
+  if(!a){ a=makeActor(r.x,r.y,r.bot,r.n); a.id=r.id; a.rx=r.x; a.ry=r.y; IO.byId.set(r.id,a); }
+  a.px=a.rx; a.py=a.ry; a.rx=r.x; a.ry=r.y; a.pang=a.rang==null?r.a:a.rang; a.rang=r.a;
+  a.name=r.n; a.isBot=!!r.bot; a.hp=r.hp; a.maxhp=r.mh; a.dead=!!r.d; a.vest=r.v; a.helm=r.h; a.light=!!r.l; a.kills=r.k; a.streak=r.st;
+  a.block=r.bl?1:0; a.reloading=!!r.rl; a.hurtFlash=r.hf?tNow+60:0; a.stagger=r.sg?tNow+60:0; a.exhaust=!!r.ex;
+  a.gunStun=r.gs?tNow+r.gs:0; a.healEnd=r.he?tNow+r.he:0; a.healKind=r.hk||null; a.fireAt=r.rc?tNow+40:0; a.hsMode=!!r.hs;
+  a.sel=r.wk==='gun'?'primary':'melee'; a.slots={primary:r.wk==='gun'?{id:r.w,rounds:1}:null, secondary:null, melee:{id:r.wk==='melee'?r.w:'fists'}};
+  if(r.sw){ a.swing={phase:r.sw[0],prog:r.sw[1],t0:tNow-r.sw[2],wind:r.sw[3],act:r.sw[4],rec:r.sw[5],a0:r.sw[6],a1:r.sw[7],heavy:!!r.sw[8],w:MELEE[r.w]||MELEE.fists,id:r.w,hit:new Set()}; } else a.swing=null;
+  a.dashState=r.ds||null; a.sneak=!!r.sn;
+  return a;
+}
+function ioSnapshot(m){
+  const now=performance.now();
+  if(IO.cur){ IO.dt=clamp(now-IO.curAt,16,200); }
+  IO.prev=IO.cur; IO.cur=m; IO.curAt=now;
+  const seen=new Set();
+  for(const r of m.a){ const a=ioActor(r); seen.add(r.id); }
+  for(const id of [...IO.byId.keys()]) if(!seen.has(id)) IO.byId.delete(id);
+  const me=IO.byId.get(IO.id);
+  if(me){ P.rx=me.rx; P.ry=me.ry; P.px=me.px; P.py=me.py; P.pang=me.pang; P.rang=me.rang; P.dead=me.dead; P.hp=me.hp; P.maxhp=me.maxhp; P.vest=me.vest; P.helm=me.helm; P.light=me.light; P.kills=me.kills; P.streak=me.streak; P.block=me.block; P.reloading=me.reloading; P.hurtFlash=me.hurtFlash; P.stagger=me.stagger; P.exhaust=me.exhaust; P.gunStun=me.gunStun; P.healEnd=me.healEnd; P.healKind=me.healKind; P.fireAt=me.fireAt; P.hsMode=me.hsMode; P.swing=me.swing; P.dashState=me.dashState; P.sneak=me.sneak; }
+  bots=[...IO.byId.values()].filter(a=>a.id!==IO.id);
+  // my private state
+  const pm=m.me; if(pm){ P.stam=pm.stam; P.ammo=pm.ammo; P.heals=pm.heals; P.nades=pm.nades; P.bleed=pm.bleed; P.slots=pm.slots; P.sel=pm.sel; P.last=pm.last;
+    P.vestHp=pm.vh; P.hsCd=pm.hsCd?tNow+pm.hsCd:0; P.fireSlow=pm.fs?tNow+pm.fs:0; P.drawEnd=pm.dr?tNow+pm.dr:0; P.suppress=pm.su?tNow+pm.su:0; P.ads=!!pm.ads;
+    if(IO.lastMe){ // pickups show up as the inventory changing
+      for(const sl of ['primary','secondary']){ const a=IO.lastMe.slots[sl], b=pm.slots[sl]; if(b&&(!a||a.id!==b.id)) { flash('picked up '+GUNS[b.id].name); A.pickup(); } }
+      if(IO.lastMe.slots.melee.id!==pm.slots.melee.id) { flash('picked up '+MELEE[pm.slots.melee.id].name); A.pickup(); }
+      if(pm.vestLvl>IO.lastMe.vestLvl){ flash('vest '+pm.vestLvl+' '+ARMOR_NAME[pm.vestLvl]); pm.vestLvl>=8?A.rare():A.pickup(); }
+      if(pm.helmLvl>IO.lastMe.helmLvl){ flash('helm '+pm.helmLvl+' '+ARMOR_NAME[pm.helmLvl]); pm.helmLvl>=8?A.rare():A.pickup(); }
+      if(pm.vestLvl===0&&IO.lastMe.vestLvl>0&&!P.dead) flash('vest shredded');
+    }
+    IO.lastMe=pm; }
+  // loot deltas
+  if(m.la) for(const l of m.la){ if(!IO.known.has(l.lid)){ IO.known.add(l.lid); loot.push(Object.assign({vx:0,vy:0,born:tNow},l)); } }
+  if(m.lr) for(const id of m.lr){ IO.known.delete(id); const i=loot.findIndex(l=>l.lid===id); if(i>=0) loot.splice(i,1); }
+  if(m.cr) for(const [x,y] of m.cr){ const o=obs.find(o=>o.kind==='crate'&&Math.abs(o.x-x)<1&&Math.abs(o.y-y)<1); if(o) breakCrate(o); }
+  bullets=m.b.map(b=>({x:b[0],y:b[1],dx:b[2],dy:b[3]}));
+  nades=m.n.map(n=>({x:n[0],y:n[1],fuse:tNow+n[2]}));
+  IO.online=m.online; IO.board=m.board.map(r=>({name:r[0],kills:r[1],me:r[2]===IO.id}));
+  for(const line of (m.feed||[])){ const mine=line.includes(IO.name); addLog(line.split(IO.name).join('you'), mine); }
+  for(const ev of (m.ev||[])) ioEvent(ev);
+  if(me && IO.prevHp!=null && me.hp<IO.prevHp-.5 && !me.dead){ const d=IO.prevHp-me.hp; A.hurt(P.x,P.y); shake=Math.max(shake,clamp(d/4,2,11)); const v=document.getElementById('dmgv'); v.style.opacity=clamp(d/45,.25,1); setTimeout(()=>v.style.opacity=0,110); }
+  if(me) IO.prevHp=me.dead?null:me.hp;
+}
+function ioEvent(ev){
+  const [name,x,y,...rest]=ev;
+  if(name!=='shot' && typeof A[name]==='function' && name!=='on' && name!=='setVol'){ try{ A[name](x,y,...rest); }catch(e){} }
+  if(name==='shot'){ const id=x, sx=y, sy=rest[0]; try{ A.shot(id,sx,sy); }catch(e){} flashLight(sx,sy,GUNS[id]&&GUNS[id].pellets>1?250:180,90); for(let i=0;i<4;i++) spark(sx,sy,rnd(TAU),1.2); }
+  else if(name==='flesh'){ blood(x,y,rnd(TAU),9); }
+  else if(name==='armor'||name==='clang'){ for(let i=0;i<8;i++) spark(x,y,rnd(TAU),1); }
+  else if(name==='parry'){ for(let i=0;i<14;i++) spark(x,y,rnd(TAU),1.2); }
+  else if(name==='down'){ blood(x,y,rnd(TAU),26); }
+  else if(name==='nade'){ flashLight(x,y,420,260,'#ffb060'); for(let i=0;i<44;i++) spark(x,y,rnd(TAU),2.4); if(P) shake=Math.max(shake, 22*(1-Math.min(1,Math.hypot(P.x-x,P.y-y)/700))); }
+}
+function ioFrame(rdt){
+  tNow+=rdt*1000;
+  // interpolate everyone one snapshot behind so movement is smooth
+  const t=IO.cur ? clamp((performance.now()-IO.curAt)/IO.dt,0,1.2) : 1;
+  for(const a of [P,...bots]){ if(a.rx==null) continue;
+    const px=a.px==null?a.rx:a.px, py=a.py==null?a.ry:a.py;
+    a.x=lerp(px,a.rx,t); a.y=lerp(py,a.ry,t);
+    if(a!==P){ const pa=a.pang==null?a.rang:a.pang; a.ang=pa+adiff(a.rang,pa)*t; } }
+  // my aim is mine, instantly; the rest of my input goes to the server every frame
+  const inp=sampleInput(); P.ang=inp.ang;
+  if(IO.ws&&IO.ws.readyState===1) IO.ws.send(JSON.stringify([inp.mx,inp.my,inp.ang,inp.f,inp.slot]));
+  if(hitstop>0) hitstop-=rdt*1000;
+  updateParts(rdt);
 }
 
 /* ───────────────────────── netplay ─────────────────────────
@@ -2410,7 +2654,7 @@ function start(cfg){
   spawnBots(MODE==='kit' ? (cfg?cfg.bots:5) : BOTN);
   alive=bots.length+players.length; updAlive();
   running=true; startT=tNow;
-  $('start').style.display='none'; $('over').style.display='none'; $('spect').style.display='none';
+  $('start').style.display='none'; $('over').style.display='none'; $('spect').style.display='none'; document.body.classList.remove('lobby');
   document.body.classList.toggle('kitmode', MODE==='kit');
   addLog(MODE==='kit'
     ? 'arena — '+KITS[P.kit].name+', first to '+KIT_TARGET+(cfg?' — vs '+cfg.names[1-cfg.me]:'')
@@ -2424,7 +2668,7 @@ function endGame(win, winner){
   const other = players.find(q=>q!==P);
   if(MODE==='kit'){
     $('overTitle').innerHTML = win? 'ARENA <em>TAKEN</em>' : 'ARENA <em>LOST</em>';
-    $('endStats').textContent = `${kills} — ${other?other.kills:botScore} · ${KITS[P.kit].name} · ${Math.floor(t/60)}m ${Math.floor(t%60)}s`;
+    $('endStats').textContent = `${kills} — ${other?other.kills:botScore} · ${(KITS[P.kit]||KITS.io).name} · ${Math.floor(t/60)}m ${Math.floor(t%60)}s`;
     $('overSub').textContent = win
       ? 'Fifteen bodies and the floor is yours.'
       : (other&&other.kills>=KIT_TARGET ? other.name+' got to fifteen first.' : 'They got to fifteen first. Try a different kit.');
@@ -2449,7 +2693,7 @@ function armorLine(K){
 }
 function buildLobby(){
   const g=$('kitGrid'); if(!g) return;
-  g.innerHTML = Object.keys(KITS).map(id=>{
+  g.innerHTML = KIT_IDS.map(id=>{
     const K=KITS[id];
     return `<div class="kit${id===MYKIT?' sel':''}" data-kit="${id}">
       <h4>${K.name}</h4><p>${K.blurb}</p><div class="st">${armorLine(K)}</div></div>`;
@@ -2465,7 +2709,7 @@ function buildLobby(){
       document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));
       el.classList.add('sel');
       $('rowBots').style.display = MODE==='br'?'flex':'none';
-      $('btnStart').textContent = MODE==='br'?'DROP IN':'ENTER ARENA';
+      startLabel();
       if(MODE==='kit') showTab('kits');
       A.click(); });
   for(const el of document.querySelectorAll('#rowBots .opts b'))
@@ -2478,18 +2722,38 @@ function buildLobby(){
       el.classList.add('sel'); A.click(); });
   for(const el of document.querySelectorAll('.tab')) tap(el,()=>showTab(el.dataset.tab));
 }
-function showTab(t){
+let curTab='modes';
+function showTab(t){ curTab=t; startLabel();
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel',x.dataset.tab===t));
   $('paneModes').style.display = t==='modes'?'block':'none';
   $('paneKits').style.display  = t==='kits' ?'block':'none';
   $('paneCtrl').style.display  = t==='ctrl' ?'block':'none';
   $('paneNet').style.display   = t==='net'  ?'flex':'none';
+  $('paneIo').style.display    = t==='io'   ?'flex':'none';
 }
-function openLobby(){ $('over').style.display='none'; $('start').style.display='flex'; if(NET.on&&!NET.host) showTab('kits'); }
-setInterval(()=>{ const b=$('btnStart'); if(NET.on&&!NET.host){ b.textContent='HOST STARTS THE MATCH'; b.disabled=true; } else { b.disabled=false; if(b.textContent==='HOST STARTS THE MATCH') b.textContent=MODE==='br'?'DROP IN':'ENTER ARENA'; } },500);
-$('btnStart').addEventListener('click',()=>{ A.on(); if(NET.on) netStart(); else start(); });
+function openLobby(){ if(IO.on||IO.ws) ioLeave(); $('over').style.display='none'; $('start').style.display='flex'; document.body.classList.add('lobby'); if(NET.on&&!NET.host) showTab('kits'); }
+setInterval(startLabel,500);
+$('btnStart').addEventListener('click',()=>{ A.on(); if(curTab==='io'){ $('netName').value=$('ioName').value; ioJoin(); } else if(NET.on) netStart(); else start(); });
+function startLabel(){ const b=$('btnStart'); if(curTab==='io'){ b.textContent='JOIN THE STRIP'; b.disabled=false; } else if(NET.on&&!NET.host){ b.textContent='HOST STARTS THE MATCH'; b.disabled=true; } else { b.disabled=false; b.textContent= NET.on ? (MODE==='br'?'START — BATTLE ROYALE':'START — ARENA') : (MODE==='br'?'DROP IN':'ENTER ARENA'); } }
 $('btnAgain').addEventListener('click',()=>{A.on();openLobby();});
-makeGround(); setupTouch(); buildLobby(); netInit();
+const SRV_LOG=[];
+if(IS_SERVER){
+  let actorN=0;
+  window.__SRV={
+    A, LOG:SRV_LOG, IB, EMPTY_INP,
+    init(seed,nbots){ MODE='io'; SEED=seed|0; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); running=true; },
+    join(name){ const a=makeActor(0,0,false,name); a.id=++actorN; const sp=findSpawn([...players,...bots]); a.x=sp.x; a.y=sp.y; equipKit(a,'io'); a.streak=0; a.pendInp={...EMPTY_INP}; players.push(a); return a; },
+    leave(a){ const i=players.indexOf(a); if(i>=0){ players.splice(i,1); if(!a.dead) dropAll(a); } },
+    input(a,arr){ const f=arr[3]|0; const q=a.pendInp||EMPTY_INP; a.pendInp={mx:+arr[0]||0,my:+arr[1]||0,ang:+arr[2]||0,f:f|(q.f&~IB_HELD),slot:(arr[4]|0)||q.slot}; },
+    step(){ stepSim(); },
+    get state(){ return {players,bots,loot,bullets,nades,obs,tNow,tick,zone}; },
+    wep, MELEE, GUNS, ARMOR_NAME,
+  };
+}
+document.body.classList.add('lobby'); makeGround(); setupTouch(); buildLobby(); netInit();
+if(!IS_SERVER){ ioDiscover();
+  $('ioName').value=localStorage.getItem('bw.name')||''; $('ioName').addEventListener('input',()=>{ localStorage.setItem('bw.name',$('ioName').value); $('netName').value=$('ioName').value; });
+  $('btnIoJoin').addEventListener('click',()=>{ A.on(); $('netName').value=$('ioName').value; ioJoin(); }); }
 if(touchMode){ document.querySelector('.keys').style.display='none'; $('touchKeys').style.display='block'; }
 requestAnimationFrame(frame);
 })();
