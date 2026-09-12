@@ -326,7 +326,7 @@
         <div class="row"><span class="lbl">CALLSIGN</span><input id="ioName" maxlength="12" placeholder="your name"></div>
         <div class="card" id="cardIo">
           <h3>PUBLIC STRIP</h3>
-          <p>One persistent map, everyone on it. Drop in with a pistol and a machete, loot up, drop your kit when you go down, respawn in three seconds. Bots fill the quiet stretches.</p>
+          <p>Battle royale rounds, everyone on one map. A twenty-second warm-up, then the fog closes until one is left breathing. Go to zero and you're downed — bandage to get back up before someone walks over and finishes you with F. Bots fill the quiet stretches.</p>
           <div class="netrow"><span class="lbl">SERVER</span><input id="ioUrl" placeholder="wss://server address" style="width:300px"><button class="mini" id="btnIoJoin" style="display:none">DROP IN</button></div>
           <div id="ioStatus" style="font-size:11px;letter-spacing:.1em;color:var(--dim);margin-top:8px">no server address yet</div>
         </div>
@@ -371,7 +371,7 @@
       </footer>
     </div>
   </div>
-  <div id="spect" style="display:none">DOWN — spectating until the match ends</div>
+  <div id="spect" style="display:none">FINISHED — spectating until the round ends</div>
 
   <div class="screen" id="over" style="display:none">
     <h1 id="overTitle">DOWN</h1>
@@ -669,7 +669,12 @@ function equipKit(a, id){
   a.sel = K.gun?'primary':'melee'; a.last='melee';
 }
 let obs=[], segs=[], loot=[], bullets=[], parts=[], decals=[], nades=[], bots=[], P=null, players=[];
+let lamps=[];
 let zone, tNow=0, hitstop=0, shake=0, alive=0, kills=0, startT=0, running=false, ended=false;
+// public servers run battle-royale rounds: a warm-up lobby with respawns, then the fog, then a winner
+const IO_RD={phase:'lobby', until:0, startAt:0, winner:null, n:0};
+const brRules=()=>MODE==='br' || (MODE==='io' && IO_RD.phase==='live');
+const DOWN_POOL=100, DOWN_BLEED=2.2;   // downed: a 100-point pool that bleeds out in ~45 s; gunfire and the fog drain it faster
 let cam={x:0,y:0};
 
 function addRect(x,y,w,h,kind,extra){ obs.push(Object.assign({s:'r',x,y,w,h,kind,hp:kind==='crate'?60:Infinity,
@@ -772,6 +777,12 @@ function genWorld(){
   for(let i=0;i<N(70);i++){ const x=srnd(MAP-80,80),y=srnd(MAP-80,80),r=srnd(40,28); if(free(x,y,r))addCirc(x,y,r,'bush'); }
   for(let i=0;i<N(95);i++){ const x=srnd(MAP-90,90),y=srnd(MAP-90,90),s=srnd(46,34);
     if(free(x,y,s)) { addRect(x,y,s,s,'crate'); } }
+  // light: a lamp post beside most buildings, a few more along the strip, fire barrels burning in the open
+  lamps=[];
+  for(const b of placed){ const side=srint(0,3); const lx=side===0?b.x-40:side===1?b.x+b.w+40:srnd(b.x+b.w-30,b.x+30), ly=side===2?b.y-40:side===3?b.y+b.h+40:srnd(b.y+b.h-30,b.y+30);
+    if(srand()<.8 && lx>60&&ly>60&&lx<MAP-60&&ly<MAP-60) lamps.push({x:lx,y:ly,kind:'lamp',r:300,ph:srnd(TAU)}); }
+  for(let i=0;i<N(9);i++){ const x=srnd(MAP-120,120),y=srnd(MAP-120,120); if(free(x,y,60)) lamps.push({x,y,kind:'lamp',r:280,ph:srnd(TAU)}); }
+  for(let i=0;i<N(11);i++){ const x=srnd(MAP-120,120),y=srnd(MAP-120,120); if(free(x,y,40)){ lamps.push({x,y,kind:'fire',r:230,ph:srnd(TAU)}); addCirc(x,y,15,'rock'); } }
   if(MODE!=='kit')
     for(let i=0;i<80;i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(free(x,y,20)) spawnLoot(x,y,lootRoll(.35)); }
   borderWalls();
@@ -859,7 +870,7 @@ function makeActor(x,y,isBot,name){
     ammo:{'9mm':0,'12g':0,'762':0,'556':0}, heals:{bandage:0,medkit:0}, nades:0,
     swing:null, block:0, blockStart:0, stagger:0, hitstopTint:0,
     fireAt:0, reloadEnd:0, reloading:false, bloom:0, ads:false,
-    healEnd:0, healKind:null, light:false, isBot, name, dead:false,
+    healEnd:0, healKind:null, light:false, isBot, name, dead:false, downed:false, downHp:0, downAt:0, downBy:null,
     gunStun:0, fireSlow:0, hsHold:false, hsMode:false, hsCd:0, dashCd:0, dashT:0, exhaust:false,
     dashState:null, dashDir:null, dashScale:1, dashT0:0, sneak:false, stepNoise:0,
     mods:{spd:1,stam:1}, respawnAt:0, kit:null,
@@ -875,6 +886,7 @@ function wep(a){
   return {kind:'gun', d:GUNS[s.id], id:s.id, s};
 }
 function speedMul(a){
+  if(a.downed) return .30*((a.mods&&a.mods.spd)||1);   // a crawl
   const w=wep(a);
   let m = w.kind==='gun' ? w.d.weight : (w.id==='axe'?.90:w.id==='machete'?.96:1);
   if(a.ads) m*=.55;
@@ -1054,6 +1066,7 @@ function headshot(t, src){
 /* ── damage ── */
 function damage(t, dmg, src, type, crit){
   if(t.dead) return;
+  if(t.downed){ damageDowned(t, type==='melee'?dmg*.8:dmg, src, type); return; }
   const headish = type==='bullet' && srand()<.14;
   if(type==='head'){ /* head rounds skip the vest; the helmet was applied in headshot() */ }
   else if(headish && t.helm) dmg *= 1-(HELM_MIT[t.helm]||0);
@@ -1071,7 +1084,27 @@ function damage(t, dmg, src, type, crit){
     const v=document.getElementById('dmgv'); v.style.opacity=clamp(dmg/45,.25,1);
     setTimeout(()=>v.style.opacity=0,110);
   }
-  if(t.hp<=0 && MODE!=='br'){
+  if(t.hp<=0){ downActor(t, src, type); return; }
+}
+function downActor(t, src, type){
+  t.downed=true; t.hp=0; t.downHp=DOWN_POOL; t.downAt=tNow; t.downBy=src&&src!==t?src:null;
+  t.swing=null; t.block=0; t.reloading=false; t.ads=false; t.hsMode=false; t.bleed=0; t.healEnd=0; t.healKind=null; t.dashState=null; t.lungeT=0;
+  A.down(t.x,t.y); blood(t.x,t.y,rnd(TAU),18);
+  if(src && src!==t){ src.downs=(src.downs||0)+1;
+    if(src===P) addLog(`you downed ${t.name} — walk up and press F to finish`,true);
+    else if(t===P) addLog(`${src.name} downed you — bandage to get back up, or crawl`);
+    else addLog(`${src.name} downed ${t.name}`); }
+  else if(t===P) addLog('you are down — bandage to get back up');
+}
+function damageDowned(t, dmg, src, type){
+  t.downHp-=dmg; t.hurtFlash=tNow+140; if(src&&src!==t) t.downBy=src;
+  if(t===P){ A.hurt(P.x,P.y); shake=Math.max(shake, clamp(dmg/5,1,6)); }
+  if(t.downHp<=0) finishActor(t, src||t.downBy, type, false);
+}
+function finishActor(t, src, type, crit){
+  if(t.dead) return;
+  t.downed=false; t.downHp=0;
+  if(!brRules()){
     t.dead=true; t.hp=0; t.respawnAt=tNow+(MODE==='io'?3000:2400);
     A.down(t.x,t.y); blood(t.x,t.y,rnd(TAU),26);
     if(MODE==='io'){ dropAll(t); t.streak=0; }          // on a public server your kit hits the floor
@@ -1085,17 +1118,17 @@ function damage(t, dmg, src, type, crit){
     if(MODE==='kit' && best>=KIT_TARGET) endGame(P.kills>=KIT_TARGET);
     return;
   }
-  if(t.hp<=0){
+  {
     t.dead=true; t.hp=0; alive--;
     A.down(t.x,t.y);
     blood(t.x,t.y,rnd(TAU),26);
     if(MODE!=='kit') dropAll(t);
     if(src) src.kills++;
-    if(src===P){ kills++; addLog(`you ${type==='melee'?(crit?'gutted':'cut down'):'dropped'} ${t.name}`,true); }
-    else if(t===P){ if(!NET.on) endGame(false); else { addLog(`${src?src.name:'the fog'} put you down — spectating`); showDown(); } }
-    else addLog(`${src?src.name:'the fog'} eliminated ${t.name}`);
+    if(src===P){ kills++; addLog(`you ${type==='exec'?'finished':type==='melee'?(crit?'gutted':'cut down'):'dropped'} ${t.name}`,true); }
+    else if(t===P){ if(MODE==='io'){ addLog(`${src?src.name:'the fog'} finished you — spectating until the next round`); showDown(); } else if(!NET.on) endGame(false); else { addLog(`${src?src.name:'the fog'} put you down — spectating`); showDown(); } }
+    else addLog(`${src?src.name:'the fog'} ${type==='exec'?'finished':'eliminated'} ${t.name}`);
     updAlive();
-    if(alive===1){ const last=[...players,...bots].find(q=>!q.dead);
+    if(alive===1 && MODE!=='io'){ const last=[...players,...bots].find(q=>!q.dead);
       if(last===P) endGame(true); else if(NET.on) endGame(false, last); }
   }
 }
@@ -1119,7 +1152,7 @@ function flashLight(x,y,r,ms,col){
   lights.push({x,y,r,t0:tNow,ms,col:col||'#ffd9a0'});
 }
 function dash(a, dx, dy){
-  if(a.dead||a.stagger>0||tNow<a.dashCd||a.exhaust||a.stam<24||a.dashState) return false;
+  if(a.dead||a.downed||a.stagger>0||tNow<a.dashCd||a.exhaust||a.stam<24||a.dashState) return false;
   let m=Math.hypot(dx,dy);
   if(m<.01){ dx=Math.cos(a.ang); dy=Math.sin(a.ang); m=1; }
   dx/=m; dy/=m;
@@ -1294,6 +1327,13 @@ function applyInput(a, inp, dt){
   if(a.dead) return;
   const down=b=>(inp.f&b)&&!(prev.f&b), up=b=>!(inp.f&b)&&(prev.f&b);
   a.ang=inp.ang;
+  if(a.downed){
+    a.block=0; a.ads=false; a.hsMode=false; a.sneak=true;
+    if(down(IB.HEAL)) startHeal(a);
+    const m=Math.hypot(inp.mx,inp.my), sp=230*speedMul(a);
+    if(m>0){ a.vx+=(inp.mx/m)*sp*11*dt; a.vy+=(inp.my/m)*sp*11*dt; a.stepPhase+=dt*4; }
+    return;
+  }
   if(inp.f&IB.AP) autoPickup(a);
   if(inp.slot) selectSlot(a, ['','primary','secondary','melee',a.last][inp.slot]);
   if(down(IB.RELOAD)) tryReload(a);
@@ -1339,6 +1379,7 @@ function startHeal(a){
   if(a.healEnd>tNow) return;
   const kind = a.hp<55 && a.heals.medkit>0 ? 'medkit' : (a.heals.bandage>0?'bandage':(a.heals.medkit>0?'medkit':null));
   if(!kind) return;
+  if(a.downed){ a.healKind=kind; a.healEnd=tNow+(kind==='medkit'?5600:4200); return; }
   if(a.hp>=a.maxhp && !a.bleed) return;
   a.healKind=kind; a.healEnd=tNow+(kind==='medkit'?5200:2100); a.swing=null;
 }
@@ -1359,7 +1400,11 @@ function nearestLoot(a){
   for(const l of loot){ const d=dist2(a.x,a.y,l.x,l.y); if(d<bd){bd=d;best=l;} }
   return best;
 }
+function nearestDowned(a){ let best=null, bd=52*52;
+  for(const o of [...players,...bots]){ if(o===a||o.dead||!o.downed) continue; const d=dist2(a.x,a.y,o.x,o.y); if(d<bd){ bd=d; best=o; } }
+  return best; }
 function pickup(a,l){
+  if(!l){ const v=nearestDowned(a); if(v){ A.flesh(v.x,v.y); blood(v.x,v.y,rnd(TAU),22); finishActor(v, a, 'exec', false); return; } }
   l = l || nearestLoot(a); if(!l) return;
   let took=true, msg='';
   if(l.t==='gun'){
@@ -1484,9 +1529,40 @@ function findSpawn(away){
         (away||[]).some(o=>!o.dead && dist2(x,y,o.x,o.y) < (MODE==='kit'?430:800)**2)));
   return {x,y};
 }
+function ioRound(){
+  const list=[...players,...bots];
+  if(IO_RD.phase==='lobby'){
+    if(players.length>0){ if(!IO_RD.until){ IO_RD.until=tNow+20000; SRV_LOG.push('round starts in 20 seconds — warm up'); } if(tNow>=IO_RD.until) ioRoundStart(); }
+    else IO_RD.until=0;
+  } else if(IO_RD.phase==='live'){
+    const al=list.filter(a=>!a.dead), hum=players.filter(a=>!a.dead).length;
+    if(players.length===0){ ioRoundReset(); return; }
+    if(al.length<=1 || hum===0 || tNow-IO_RD.startAt>420000) ioRoundEnd(al.length===1?al[0]:null);
+  } else if(IO_RD.phase==='over'){ if(tNow>=IO_RD.until) ioRoundReset(); }
+}
+function ioLootFresh(){ loot=[]; lootN=0; for(let i=0;i<110;i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(!overlaps(x,y,20)) spawnLoot(x,y,lootRoll(.35)); } }
+function ioRoundStart(){
+  IO_RD.phase='live'; IO_RD.n++; IO_RD.startAt=tNow; IO_RD.winner=null;
+  ioLootFresh();
+  zone={x:MAP/2,y:MAP/2,r:MAP*.72,tx:MAP/2,ty:MAP/2,tr:MAP*.72,stage:0,next:tNow+26000,moving:false,dmg:.6};
+  for(const a of [...players,...bots]) respawn(a);
+  alive=players.length+bots.length;
+  SRV_LOG.push('ROUND '+IO_RD.n+' — last one breathing wins');
+}
+function ioRoundEnd(w){
+  IO_RD.phase='over'; IO_RD.until=tNow+9000; IO_RD.winner=w?w.name:null;
+  SRV_LOG.push(w ? w.name+' is the last one breathing' : 'nobody left breathing');
+}
+function ioRoundReset(){
+  IO_RD.phase='lobby'; IO_RD.until=players.length?tNow+20000:0; IO_RD.winner=null;
+  zone={x:MAP/2,y:MAP/2,r:MAP*1.6,tx:MAP/2,ty:MAP/2,tr:MAP*1.6,stage:0,next:1e12,moving:false,dmg:0};
+  ioLootFresh();
+  for(const a of [...players,...bots]) respawn(a);
+  if(players.length) SRV_LOG.push('warm-up — next round in 20 seconds');
+}
 function respawn(a){
   const sp=findSpawn([...players,...bots]);
-  a.x=sp.x; a.y=sp.y; a.vx=a.vy=0; a.dead=false; a.bleed=0;
+  a.x=sp.x; a.y=sp.y; a.vx=a.vy=0; a.dead=false; a.bleed=0; a.downed=false; a.downHp=0; a.downBy=null; a.healEnd=0; a.healKind=null; a.ads=false;
   a.swing=null; a.block=0; a.stagger=0; a.gunStun=0; a.reloading=false;
   a.hsCd=0; a.fireSlow=0; a.dashCd=0; a.respawnAt=0;
   equipKit(a, MODE==='io' ? 'io' : (a.kit || (a===P?MYKIT:spick(KIT_IDS))));
@@ -1523,6 +1599,11 @@ const VIEW_BASE = 520;  // shared by the player's viewRadius() and the bots — 
 function botThink(b,dt){
   const ai=b.ai;
   const w=wep(b);
+  if(b.downed){ // bandage if you can; otherwise crawl away from whoever is closest
+    if(b.heals.bandage>0 && b.healEnd<tNow && !b.healKind){ b.heals.bandage--; b.healKind='bandage'; b.healEnd=tNow+4200; }
+    let near=null, nd=1e9; for(const o of [...players,...bots]){ if(o===b||o.dead||o.downed) continue; const d=dist2(b.x,b.y,o.x,o.y); if(d<nd){ nd=d; near=o; } }
+    if(near && nd<600*600){ const a=Math.atan2(b.y-near.y,b.x-near.x); const sp=210*speedMul(b); b.vx+=Math.cos(a)*sp*10*dt; b.vy+=Math.sin(a)*sp*10*dt; }
+    return; }
   // target acquisition
   let tgt=null, td=1e9;
   const cands=[...players,...bots];
@@ -1536,6 +1617,11 @@ function botThink(b,dt){
   if(tgt){ ai.target=tgt; ai.seen=tNow; }
   else if(tNow-ai.seen>2600) ai.target=null;
   const T=ai.target;
+  if(T && T.downed){ // walk up and finish it
+    const a=Math.atan2(T.y-b.y,T.x-b.x); b.ang=a; b.block=0;
+    if(td<46*46){ if(tNow>ai.nextAtk){ pickup(b); ai.nextAtk=tNow+700; } }
+    else { const sp=210*speedMul(b); b.vx+=Math.cos(a)*sp*10*dt; b.vy+=Math.sin(a)*sp*10*dt; }
+    return; }
 
   // zone pressure
   const zd=Math.hypot(b.x-zone.x,b.y-zone.y);
@@ -1664,6 +1750,9 @@ function botThink(b,dt){
 /* ───────────────────────── update ───────────────────────── */
 function updateActor(a,dt,list){
   if(a.dead) return;
+  if(a.downed){ a.downHp-=DOWN_BLEED*dt;
+    if(Math.random()<dt*2) decals.push({x:a.x+rnd(8,-8),y:a.y+rnd(8,-8),r:rnd(7,3),a:.22});
+    if(a.downHp<=0){ finishActor(a, a.downBy, 'bleed', false); return; } }
   if(a.stagger<tNow) a.stagger=0;
   // stamina — once it bottoms out you're winded until it recovers to 35
   if(tNow>a.staDelay) a.stam=Math.min(100, a.stam + (a.block?9:26)*dt*((a.mods&&a.mods.stam)||1)*(.7+.3*vestWeight(a.vest||0)));
@@ -1677,7 +1766,13 @@ function updateActor(a,dt,list){
   // heal
   if(a.healEnd>tNow){ /* channeling */ }
   else if(a.healKind){
-    if(!a.isBot){ if(a.healKind==='medkit'){a.heals.medkit--; a.hp=Math.min(a.maxhp,a.hp+72);}
+    if(a.downed){ // back on your feet, barely
+      if(!a.isBot) a.heals[a.healKind]=Math.max(0,a.heals[a.healKind]-1);
+      a.downed=false; a.downHp=0; a.hp=a.healKind==='medkit'?60:30; a.stam=Math.min(a.stam,40); a.downBy=null;
+      if(a===P) addLog('you got back up',true); else if(!a.isBot||MODE!=='io') addLog(a.name+' got back up');
+      for(let i=0;i<6;i++) spark(a.x,a.y,rnd(TAU),.8);
+    }
+    else if(!a.isBot){ if(a.healKind==='medkit'){a.heals.medkit--; a.hp=Math.min(a.maxhp,a.hp+72);}
                else {a.heals.bandage--; a.hp=Math.min(a.maxhp,a.hp+18);} }
     else a.hp=Math.min(a.maxhp,a.hp+20);
     a.bleed=0; a.healKind=null;
@@ -1700,9 +1795,10 @@ function updateActor(a,dt,list){
   }
   // zone damage
   const zd=Math.hypot(a.x-zone.x,a.y-zone.y);
-  if(zd>zone.r){ a.hp -= zone.dmg*(1+zone.stage*.55)*dt*12;
+  if(zd>zone.r){ const zdmg=zone.dmg*(1+zone.stage*.55)*dt*12;
     if(a===P && Math.random()<dt*4){ const v=document.getElementById('dmgv'); v.style.opacity=.35; setTimeout(()=>v.style.opacity=0,100);}
-    if(a.hp<=0 && !a.dead){ a.hp=.01; damage(a,1,null,'zone'); } }
+    if(a.downed){ a.downHp-=zdmg*3; if(a.downHp<=0) finishActor(a, null, 'zone', false); }
+    else { a.hp-=zdmg; if(a.hp<=0 && !a.dead){ a.hp=.01; damage(a,1,null,'zone'); } } }
 }
 function updateBullets(dt){
   const list=[...players,...bots];
@@ -1771,7 +1867,7 @@ function updateZone(dt){
     zone.r=lerp(zone.r,zone.tr,k); zone.x=lerp(zone.x,zone.tx,k); zone.y=lerp(zone.y,zone.ty,k);
     if(Math.abs(zone.r-zone.tr)<6){ zone.r=zone.tr; zone.x=zone.tx; zone.y=zone.ty;
       zone.moving=false; zone.next=tNow+Math.max(13000, 24000-zone.stage*2400); }
-  } else if(MODE==='br' && tNow>zone.next && zone.r>110){
+  } else if(brRules() && tNow>zone.next && zone.r>110){
     zone.stage++; zone.moving=true;
     zone.tr=Math.max(90, zone.r*srnd(.62,.52));
     const off=(zone.r-zone.tr)*srnd(.85,.2), a=srnd(TAU);
@@ -1876,6 +1972,26 @@ function drawMelee(id, len, opt){ opt=opt||{}; const g=opt.grip||0;
   ctx.restore(); }
 function drawActor(a, isP){
   const w=wep(a);
+  if(a.downed){ // on the ground: a flattened body, no weapon, a slow red pulse so it reads from across the field
+    ctx.save(); ctx.translate(a.x,a.y);
+    ctx.fillStyle='rgba(96,18,14,.55)'; ctx.beginPath(); ctx.ellipse(6,6,a.r*1.5,a.r*1.1,.6,0,TAU); ctx.fill();
+    ctx.rotate(a.ang);
+    const pulse=.5+.5*Math.sin(tNow/260);
+    ctx.strokeStyle='rgba(220,60,40,'+(.25+.45*pulse)+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,a.r+9+pulse*3,0,TAU); ctx.stroke();
+    const base = isP ? '#6f8b6a' : (a.isBot ? '#6a6f7b' : '#8b6a6f');
+    ctx.fillStyle = a.hurtFlash>tNow ? '#d7b1ad' : base;
+    ctx.beginPath(); ctx.ellipse(0,0,a.r*1.15,a.r*.8,0,0,TAU); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=2.5; ctx.stroke();
+    if(a.helm){ ctx.fillStyle=armorColor(a.helm); ctx.beginPath(); ctx.arc(a.r*.55,0,a.r*.42,0,TAU); ctx.fill(); }
+    ctx.strokeStyle='#2b3239'; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-4,-8); ctx.lineTo(16,-14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-4,8); ctx.lineTo(14,16); ctx.stroke();
+    if(a.healKind && a.healEnd>tNow){ ctx.rotate(-a.ang); ctx.strokeStyle='rgba(230,240,255,.85)'; ctx.lineWidth=3;
+      const k=1-(a.healEnd-tNow)/(a.healKind==='medkit'?5600:4200); ctx.beginPath(); ctx.arc(0,0,a.r+16,-Math.PI/2,-Math.PI/2+TAU*k); ctx.stroke(); }
+    ctx.restore();
+    // the bleed-out bar
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(a.x-22,a.y-a.r-22,44,5);
+    ctx.fillStyle='#c8452c'; ctx.fillRect(a.x-22,a.y-a.r-22,44*clamp(a.downHp/DOWN_POOL,0,1),5);
+    return;
+  }
   ctx.save(); ctx.translate(a.x,a.y);
   // shadow
   ctx.fillStyle='rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(3,5,a.r*1.02,a.r*.88,0,0,TAU); ctx.fill();
@@ -2065,6 +2181,15 @@ function render(){
   for(const l of loot) if(l.x>L&&l.x<R&&l.y>T&&l.y<B) drawLoot(l);
   // obstacles (not bush, not floor)
   for(const o of obs) if(!o.floor && o.kind!=='bush' && o.kind!=='tree' && vis(o)) drawObstacle(o);
+  // light fixtures
+  for(const lp of lamps){ if(lp.x<L-80||lp.x>R+80||lp.y<T-80||lp.y>B+80) continue;
+    if(lp.kind==='lamp'){ ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(lp.x+4,lp.y+5,9,0,TAU); ctx.fill();
+      ctx.fillStyle='#2b3037'; ctx.beginPath(); ctx.arc(lp.x,lp.y,7,0,TAU); ctx.fill(); ctx.strokeStyle='#4a5159'; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle='#ffe2a6'; ctx.beginPath(); ctx.arc(lp.x,lp.y,4,0,TAU); ctx.fill(); }
+    else { const fl=.75+.25*Math.sin(tNow/90+lp.ph)*Math.sin(tNow/37+lp.ph*2);
+      ctx.fillStyle='#1b1e22'; ctx.beginPath(); ctx.arc(lp.x,lp.y,15,0,TAU); ctx.fill(); ctx.strokeStyle='#3c4148'; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle='rgba(255,140,50,'+(.55+.35*fl)+')'; ctx.beginPath(); ctx.arc(lp.x,lp.y,10*fl,0,TAU); ctx.fill();
+      ctx.fillStyle='rgba(255,230,150,'+(.5*fl)+')'; ctx.beginPath(); ctx.arc(lp.x-2,lp.y-2,4.5*fl,0,TAU); ctx.fill(); } }
   // actors
   for(const g of ghosts){
     const t=1-(tNow-g.t0)/260;
@@ -2129,7 +2254,7 @@ function render(){
   const R2=viewRadius();
   lctx.setTransform(DPR,0,0,DPR,0,0);
   lctx.globalCompositeOperation='source-over';
-  lctx.fillStyle='rgba(5,7,11,.90)';
+  lctx.fillStyle='rgba(5,7,11,.87)';
   lctx.fillRect(0,0,VW,VH);
   lctx.save();
   lctx.scale(ZOOM,ZOOM); lctx.translate(-cam.x+sx,-cam.y+sy);
@@ -2169,6 +2294,20 @@ function render(){
     g3.addColorStop(0,'rgba(0,0,0,'+(.95*t)+')'); g3.addColorStop(1,'rgba(0,0,0,0)');
     lctx.fillStyle=g3; lctx.beginPath(); lctx.arc(l.x,l.y,rr,0,TAU); lctx.fill();
   }
+  // fixtures: lamp posts hold steady, barrels flicker
+  const LX0=cam.x-sx-400, LX1=cam.x-sx+VWw+400, LY0=cam.y-sy-400, LY1=cam.y-sy+VHw+400;
+  for(const lp of lamps){ if(lp.x<LX0||lp.x>LX1||lp.y<LY0||lp.y>LY1) continue;
+    const fl=lp.kind==='fire' ? .78+.22*Math.sin(tNow/90+lp.ph)*Math.sin(tNow/37+lp.ph*2) : 1;
+    const rr=lp.r*fl;
+    const g4=lctx.createRadialGradient(lp.x,lp.y,6,lp.x,lp.y,rr);
+    g4.addColorStop(0,'rgba(0,0,0,.92)'); g4.addColorStop(.5,'rgba(0,0,0,.55)'); g4.addColorStop(1,'rgba(0,0,0,0)');
+    lctx.fillStyle=g4; lctx.beginPath(); lctx.arc(lp.x,lp.y,rr,0,TAU); lctx.fill(); }
+  // other people's torches: a lit weapon gives you away from a long way off
+  for(const b of [...bots,...players]){ if(b===P||b.dead||!b.light) continue;
+    if(b.x<LX0-600||b.x>LX1+600||b.y<LY0-600||b.y>LY1+600) continue;
+    const CR=520; lctx.beginPath(); lctx.moveTo(b.x,b.y); lctx.arc(b.x,b.y,CR,b.ang-.36,b.ang+.36); lctx.closePath();
+    const g5=lctx.createRadialGradient(b.x,b.y,16,b.x,b.y,CR); g5.addColorStop(0,'rgba(0,0,0,.7)'); g5.addColorStop(1,'rgba(0,0,0,0)');
+    lctx.fillStyle=g5; lctx.fill(); }
   lctx.restore();
   ctx.setTransform(1,0,0,1,0,0);
   if(!touchMode) ctx.filter='blur(5px)';
@@ -2179,6 +2318,11 @@ function render(){
   // additive warm light
   ctx.save(); ctx.scale(ZOOM,ZOOM); ctx.translate(-cam.x+sx,-cam.y+sy);
   ctx.globalCompositeOperation='lighter';
+  for(const lp of lamps){ if(lp.x<LX0||lp.x>LX1||lp.y<LY0||lp.y>LY1) continue;
+    const fire=lp.kind==='fire', fl=fire ? .78+.22*Math.sin(tNow/90+lp.ph)*Math.sin(tNow/37+lp.ph*2) : 1, rr=lp.r*fl*.9;
+    const g=ctx.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,rr);
+    g.addColorStop(0,fire?'rgba(255,150,60,.34)':'rgba(255,222,160,.26)'); g.addColorStop(.4,fire?'rgba(255,120,40,.14)':'rgba(255,215,150,.11)'); g.addColorStop(1,'rgba(255,200,120,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(lp.x,lp.y,rr,0,TAU); ctx.fill(); }
   for(const l of lights){
     const t=clamp(1-(tNow-l.t0)/l.ms,0,1), rr=l.r*(0.6+.4*t);
     const g=ctx.createRadialGradient(l.x,l.y,0,l.x,l.y,rr);
@@ -2329,10 +2473,12 @@ function hud(){
 
   const zEl=$('zone');
   if(MODE==='io'){
-    $('alive').textContent = P.kills|0;
-    $('aliveLbl').textContent = 'kills · streak '+(P.streak|0);
-    zEl.textContent = P.dead ? 'respawning…' : (IO.online+' on the strip');
-    zEl.className = P.dead?'warn':'';
+    const rd=IO.rd||{phase:'lobby',left:0,alive:0}; const left=Math.max(0,Math.ceil((rd.left-(performance.now()-(IO.rdAt||0)))/1000));
+    if(rd.phase==='live'){ $('alive').textContent=rd.alive; $('aliveLbl').textContent='alive · round '+rd.n;
+      zEl.textContent = P.dead ? 'spectating · next round after this one' : P.downed ? 'DOWNED · '+(touchMode?'HEAL':'E')+' bandage to get up · '+Math.ceil(P.downHp)+'%' : zone.moving ? 'fog closing' : 'fog holding';
+      zEl.className = (P.dead||P.downed||zone.moving)?'warn':''; }
+    else if(rd.phase==='over'){ $('alive').textContent=rd.alive; $('aliveLbl').textContent='round over'; zEl.textContent=(rd.winner?rd.winner+' wins':'nobody left')+' · next round in '+left+'s'; zEl.className='warn'; }
+    else { $('alive').textContent=P.kills|0; $('aliveLbl').textContent='warm-up kills'; zEl.textContent = P.dead ? 'respawning…' : P.downed ? 'DOWNED · '+(touchMode?'HEAL':'E')+' to bandage' : (left?'round starts in '+left+'s':'waiting for players')+' · '+IO.online+' online'; zEl.className=(P.dead||P.downed)?'warn':''; }
     const B=$('board'); B.style.display='block';
     B.innerHTML='<b>TOP</b>'+IO.board.map((r,i)=>`<div${r.me?' class="me"':''}><span>${i+1}</span>${r.name}<i>${r.kills}</i></div>`).join('');
   }
@@ -2342,6 +2488,7 @@ function hud(){
     zEl.textContent = P.dead ? 'respawning…' : (KITS[MYKIT]?KITS[MYKIT].name:'');
     zEl.className = P.dead?'warn':'';
   }
+  else if(P.downed){ zEl.textContent='DOWNED · '+(touchMode?'HEAL':'E')+' bandage to get up · '+Math.ceil(P.downHp)+'%'; zEl.className='warn'; }
   else if(zone.moving) { zEl.textContent='fog closing'; zEl.className='warn'; }
   else { const s=Math.max(0,(zone.next-tNow)/1000);
     zEl.textContent='fog moves in '+s.toFixed(0)+'s'; zEl.className=s<6?'warn':''; }
@@ -2355,8 +2502,9 @@ function hud(){
     $('tFire').className = 'tbtn'+(charging?' charge':'');
     $('tFire').textContent = mw.kind==='melee' ? 'SWING' : 'FIRE';
   }
-  const l=nearestLoot();
-  if(l && tNow>hintT){ $('hint').textContent = (touchMode?'PICK':'F')+' — '+lootLabel(l); $('hint').style.display='block'; }
+  const l=nearestLoot(); const vd=P.dead?null:nearestDowned(P);
+  if(vd && tNow>hintT){ $('hint').textContent = (touchMode?'PICK':'F')+' — FINISH '+vd.name.toUpperCase(); $('hint').style.display='block'; }
+  else if(l && tNow>hintT){ $('hint').textContent = (touchMode?'PICK':'F')+' — '+lootLabel(l); $('hint').style.display='block'; }
   else if(tNow>hintT) $('hint').style.display='none';
 }
 
@@ -2404,8 +2552,9 @@ function stepSim(){
   if(hitstop>0 && !IS_SERVER){ hitstop-=dt*1000; tNow+=dt*1000*.12; tick++; return; }
   tNow+=dt*1000;
   const list=[...players,...bots];
-  if(MODE!=='br') for(const a of list) if(a.dead && a.respawnAt && tNow>a.respawnAt) respawn(a);
-  if(MODE==='io' && tick%900===0) ioRefill();          // the strip restocks itself every 15 s
+  if(!brRules()) for(const a of list) if(a.dead && a.respawnAt && tNow>a.respawnAt) respawn(a);
+  if(MODE==='io' && IO_RD.phase!=='live' && tick%900===0) ioRefill();          // the strip restocks itself every 15 s
+  if(MODE==='io' && IS_SERVER) ioRound();
   for(let i=0;i<players.length;i++){
     const q=players[i];
     const inp = NET.on ? netInput(i,tick) : IS_SERVER ? (q.pendInp||EMPTY_INP) : (q===P ? sampleInput() : EMPTY_INP);
@@ -2472,7 +2621,7 @@ function ioActor(r){
   let a=IO.byId.get(r.id);
   if(!a){ a=makeActor(r.x,r.y,r.bot,r.n); a.id=r.id; a.rx=r.x; a.ry=r.y; IO.byId.set(r.id,a); }
   a.px=a.rx; a.py=a.ry; a.rx=r.x; a.ry=r.y; a.pang=a.rang==null?r.a:a.rang; a.rang=r.a;
-  a.name=r.n; a.isBot=!!r.bot; a.hp=r.hp; a.maxhp=r.mh; a.dead=!!r.d; a.vest=r.v; a.helm=r.h; a.light=!!r.l; a.kills=r.k; a.streak=r.st;
+  a.name=r.n; a.isBot=!!r.bot; a.hp=r.hp; a.maxhp=r.mh; a.dead=!!r.d; a.downed=!!r.dn; a.downHp=r.dh||0; a.vest=r.v; a.helm=r.h; a.light=!!r.l; a.kills=r.k; a.streak=r.st;
   a.block=r.bl?1:0; a.reloading=!!r.rl; a.hurtFlash=r.hf?tNow+60:0; a.stagger=r.sg?tNow+60:0; a.exhaust=!!r.ex;
   a.gunStun=r.gs?tNow+r.gs:0; a.healEnd=r.he?tNow+r.he:0; a.healKind=r.hk||null; a.fireAt=r.rc?tNow+40:0; a.hsMode=!!r.hs;
   a.sel=r.wk==='gun'?'primary':'melee'; a.slots={primary:r.wk==='gun'?{id:r.w,rounds:1}:null, secondary:null, melee:{id:r.wk==='melee'?r.w:'fists'}};
@@ -2488,7 +2637,7 @@ function ioSnapshot(m){
   for(const r of m.a){ const a=ioActor(r); seen.add(r.id); }
   for(const id of [...IO.byId.keys()]) if(!seen.has(id)) IO.byId.delete(id);
   const me=IO.byId.get(IO.id);
-  if(me){ P.rx=me.rx; P.ry=me.ry; P.px=me.px; P.py=me.py; P.pang=me.pang; P.rang=me.rang; P.dead=me.dead; P.hp=me.hp; P.maxhp=me.maxhp; P.vest=me.vest; P.helm=me.helm; P.light=me.light; P.kills=me.kills; P.streak=me.streak; P.block=me.block; P.reloading=me.reloading; P.hurtFlash=me.hurtFlash; P.stagger=me.stagger; P.exhaust=me.exhaust; P.gunStun=me.gunStun; P.healEnd=me.healEnd; P.healKind=me.healKind; P.fireAt=me.fireAt; P.hsMode=me.hsMode; P.swing=me.swing; P.sneak=me.sneak;
+  if(me){ P.rx=me.rx; P.ry=me.ry; P.px=me.px; P.py=me.py; P.pang=me.pang; P.rang=me.rang; P.dead=me.dead; P.downed=me.downed; P.downHp=me.downHp; P.hp=me.hp; P.maxhp=me.maxhp; P.vest=me.vest; P.helm=me.helm; P.light=me.light; P.kills=me.kills; P.streak=me.streak; P.block=me.block; P.reloading=me.reloading; P.hurtFlash=me.hurtFlash; P.stagger=me.stagger; P.exhaust=me.exhaust; P.gunStun=me.gunStun; P.healEnd=me.healEnd; P.healKind=me.healKind; P.fireAt=me.fireAt; P.hsMode=me.hsMode; P.swing=me.swing; P.sneak=me.sneak;
     // reconcile: compare the server's position with where WE thought we were when it processed that input
     const ack=m.me&&m.me.seq; const h=ack!=null ? IO.hist.find(e=>e.seq===ack) : null;
     if(h){ const ex=me.rx-h.x, ey=me.ry-h.y, e=Math.hypot(ex,ey);
@@ -2515,6 +2664,11 @@ function ioSnapshot(m){
   bullets=m.b.map(b=>({x:b[0],y:b[1],dx:b[2],dy:b[3]}));
   nades=m.n.map(n=>({x:n[0],y:n[1],fuse:tNow+n[2]}));
   IO.online=m.online; IO.board=m.board.map(r=>({name:r[0],kills:r[1],me:r[2]===IO.id}));
+  if(m.rd){ const was=IO.rd&&IO.rd.phase; IO.rd={phase:m.rd[0],left:m.rd[1],alive:m.rd[2],winner:m.rd[3],n:m.rd[4]}; IO.rdAt=performance.now();
+    if(was&&was!==IO.rd.phase){ if(IO.rd.phase==='live'){ flash('ROUND '+IO.rd.n+' — LAST ONE BREATHING'); $('spect').style.display='none'; zone.r=MAP*.72; zone.tr=zone.r; zone.x=zone.tx=MAP/2; zone.y=zone.ty=MAP/2; zone.stage=0; zone.moving=false; }
+      else if(IO.rd.phase==='over'){ flash(IO.rd.winner ? IO.rd.winner.toUpperCase()+' WINS' : 'NOBODY LEFT'); }
+      else { flash('WARM-UP'); $('spect').style.display='none'; zone.r=zone.tr=MAP*1.6; zone.moving=false; } } }
+  if(m.z){ zone.x=m.z[0]; zone.y=m.z[1]; zone.r=m.z[2]; zone.tx=m.z[3]; zone.ty=m.z[4]; zone.tr=m.z[5]; zone.moving=!!m.z[6]; zone.stage=m.z[7]; }
   for(const line of (m.feed||[])){ const mine=line.includes(IO.name); addLog(line.split(IO.name).join('you'), mine); }
   for(const ev of (m.ev||[])) ioEvent(ev);
   if(me && IO.prevHp!=null && me.hp<IO.prevHp-.5 && !me.dead){ const d=IO.prevHp-me.hp; A.hurt(P.x,P.y); shake=Math.max(shake,clamp(d/4,2,11)); const v=document.getElementById('dmgv'); v.style.opacity=clamp(d/45,.25,1); setTimeout(()=>v.style.opacity=0,110); }
@@ -2847,17 +3001,19 @@ if(IS_SERVER){
   window.__SRV={
     A, LOG:SRV_LOG, IB, EMPTY_INP,
     init(seed,nbots){ MODE='io'; SEED=seed|0; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); running=true; },
-    join(name){ const a=makeActor(0,0,false,name); a.id=++actorN; const sp=findSpawn([...players,...bots]); a.x=sp.x; a.y=sp.y; equipKit(a,'io'); a.streak=0; a.pendInp={...EMPTY_INP}; players.push(a); return a; },
+    join(name){ const a=makeActor(0,0,false,name); a.id=++actorN; const sp=findSpawn([...players,...bots]); a.x=sp.x; a.y=sp.y; equipKit(a,'io'); a.streak=0; a.pendInp={...EMPTY_INP}; players.push(a);
+      if(IO_RD.phase==='live' && tNow-IO_RD.startAt>45000){ a.dead=true; a.hp=0; } else if(IO_RD.phase==='live') alive++;
+      return a; },
     leave(a){ const i=players.indexOf(a); if(i>=0){ players.splice(i,1); if(!a.dead) dropAll(a); } },
     input(a,arr){ const f=arr[3]|0; const q=a.pendInp||EMPTY_INP; a.pendInp={mx:+arr[0]||0,my:+arr[1]||0,ang:+arr[2]||0,f:f|(q.f&~IB_HELD),slot:(arr[4]|0)||q.slot,seq:arr[5]|0}; },
     step(){ stepSim(); },
-    get state(){ return {players,bots,loot,bullets,nades,obs,tNow,tick,zone}; },
+    get state(){ return {players,bots,loot,bullets,nades,obs,tNow,tick,zone,rd:IO_RD}; },
     wep, MELEE, GUNS, ARMOR_NAME,
   };
 }
 document.body.classList.add('lobby'); makeGround(); setupTouch(); buildLobby(); netInit();
 if(location.protocol==='https:' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
-if(!IS_SERVER){ ioDiscover();
+if(!IS_SERVER){ ioDiscover(); if(new URLSearchParams(location.search).get('server')){ const t=document.querySelector('.tab[data-tab="io"]'); if(t) t.click(); }
   $('ioName').value=localStorage.getItem('bw.name')||''; $('ioName').addEventListener('input',()=>{ localStorage.setItem('bw.name',$('ioName').value); $('netName').value=$('ioName').value; });
   $('btnIoJoin').addEventListener('click',()=>{ A.on(); $('netName').value=$('ioName').value; ioJoin(); }); }
 if(touchMode){ document.querySelector('.keys').style.display='none'; $('touchKeys').style.display='block'; }

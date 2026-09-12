@@ -44,7 +44,7 @@ wss.on('connection', ws => {
       c = { a, known:new Set(), name };
       clients.set(ws, c);
       ws.send(JSON.stringify({k:'init', seed:SEED, id:a.id, x:a.x, y:a.y, online:clients.size}));
-      SRV.LOG.push(`${name} drifted onto the strip`);
+      SRV.LOG.push(`${name} drifted onto the strip${a.dead?' — spectating until the next round':''}`);
       console.log(`+ ${name} (${clients.size} online)`);
       return;
     }
@@ -69,7 +69,7 @@ const rem = (t, now) => Math.max(0, Math.round(t - now));
 function packActor(a, now){
   const w = SRV.wep(a), s = a.swing;
   return { id:a.id, n:a.name, bot:a.isBot?1:0, x:Math.round(a.x*10)/10, y:Math.round(a.y*10)/10, a:Math.round(a.ang*1000)/1000,
-    hp:Math.round(a.hp), mh:a.maxhp, d:a.dead?1:0, v:a.vest, h:a.helm, l:a.light?1:0, k:a.kills|0, st:a.streak|0,
+    hp:Math.round(a.hp), mh:a.maxhp, d:a.dead?1:0, dn:a.downed?1:0, dh:a.downed?Math.round(a.downHp):0, v:a.vest, h:a.helm, l:a.light?1:0, k:a.kills|0, st:a.streak|0,
     bl:a.block?1:0, rl:a.reloading?1:0, hf:a.hurtFlash>now?1:0, sg:a.stagger>now?1:0, ex:a.exhaust?1:0,
     gs:rem(a.gunStun,now), he:a.healEnd>now?rem(a.healEnd,now):0, hk:a.healKind||undefined, rc:a.fireAt>now?1:0, hs:a.hsMode?1:0,
     wk:w.kind, w:w.id, sw: s ? [s.phase, Math.round(s.prog*100)/100, Math.round(now-s.t0), s.wind, s.act, s.rec, s.a0, s.a1, s.heavy?1:0] : undefined,
@@ -88,13 +88,16 @@ function broadcast(){
   const board = [...st.players, ...st.bots].filter(a=>!a.isBot || a.kills>0).sort((p,q)=>(q.kills|0)-(p.kills|0)).slice(0,6).map(a=>[a.name, a.kills|0, a.id]);
   const feed = SRV.LOG.splice(0), ev = events.splice(0);
   const crates = brokenCrates();
+  const R = st.rd, aliveN = [...st.players, ...st.bots].filter(a=>!a.dead).length;
+  const rd = [R.phase, rem(R.until, now), aliveN, R.winner, R.n];
+  const zn = st.zone, z = [Math.round(zn.x), Math.round(zn.y), Math.round(zn.r), Math.round(zn.tx), Math.round(zn.ty), Math.round(zn.tr), zn.moving?1:0, zn.stage];
   const lootIds = new Set(st.loot.map(l => l.lid));
   for(const [ws, c] of clients){
     if(ws.readyState !== 1) continue;
     const la = [], lr = [];
     for(const l of st.loot) if(!c.known.has(l.lid)){ c.known.add(l.lid); la.push({lid:l.lid, x:Math.round(l.x), y:Math.round(l.y), t:l.t, id:l.id, lvl:l.lvl, n:l.n, hp:l.hp, rounds:l.rounds}); }
     for(const id of [...c.known]) if(!lootIds.has(id)){ c.known.delete(id); lr.push(id); }
-    const msg = { k:'s', t:now, a:actors, b:bullets, n:nades, online:clients.size, board, me:packMe(c.a, now) };
+    const msg = { k:'s', t:now, a:actors, b:bullets, n:nades, online:clients.size, board, me:packMe(c.a, now), rd, z };
     if(la.length) msg.la = la; if(lr.length) msg.lr = lr; if(crates.length) msg.cr = crates; if(feed.length) msg.feed = feed; if(ev.length) msg.ev = ev;
     ws.send(JSON.stringify(msg));
   }
