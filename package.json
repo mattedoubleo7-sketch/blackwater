@@ -1,0 +1,10 @@
+{
+  "name": "blackwater",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BLACKWATER — tactical top-down battle royale (static game + public server)",
+  "scripts": {
+    "start": "cd server && npm install --omit=dev && node index.js"
+  },
+  "engines": { "node": ">=18" }
+}
