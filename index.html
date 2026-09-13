@@ -3912,7 +3912,20 @@ function frame(ts){
   }
   if(acc>STEP*5) acc=STEP*5;
   try{ renderStairs(); hud(); }catch(e){ showErr(e); }
+  darkWatch();
 }
+// a black screen with the HUD still up means the world drew nothing where you are: say why, and get you out of it
+const DARK={t0:0,n:0,last:0};
+function darkWatch(){ if(!running||!P||P.dead||tNow-DARK.last<1000) return; DARK.last=tNow;
+  let lit=0; try{ const w=Math.floor(160*DPR), h=Math.floor(160*DPR); const d=ctx.getImageData(Math.floor(cv.width/2-w/2),Math.floor(cv.height/2-h/2),w,h).data; for(let i=0;i<d.length;i+=4*37) if(d[i]+d[i+1]+d[i+2]>60) lit++; }catch(e){ return; }
+  if(lit>8){ DARK.n=0; return; }
+  DARK.n++; if(DARK.n<3) return;
+  const bad=![P.x,P.y,cam.x,cam.y,ZOOM,shake].every(Number.isFinite), off=P.x<0||P.x>MAP||P.y<0||P.y>(UG?NLAYERS*UG:MAP);
+  const info='DARK ×'+DARK.n+' P='+(P.x|0)+','+(P.y|0)+' L='+layerOf(P)+' cam='+(cam.x|0)+','+(cam.y|0)+' zoom='+ZOOM.toFixed(2)+' shake='+(shake|0)+' ghost='+GHOST+' stair='+(P.stair?'y':'n')+' vis='+visPoly(P.x,P.y,300).length+' segs='+segs.length+' io='+IO.on+' map='+MAPID+(bad?' NaN!':'')+(off?' OFFMAP!':'');
+  console.warn(info); showErr(new Error(info));
+  if(bad||off||DARK.n>=6){ // get out: back to a clear spot on the surface
+    GHOST=false; shake=0; const spot=(()=>{ for(let t=0;t<200;t++){ const x=srnd(MAP-300,300), y=srnd(MAP-300,300); if(!overlaps(x,y,30)) return {x,y}; } return {x:MAP/2,y:MAP/2}; })();
+    P.x=spot.x; P.y=spot.y; P.vx=P.vy=0; cam.x=P.x-VWw/2; cam.y=P.y-VHw/2; perkZoom(); flash('you were somewhere the world could not draw — moved'); DARK.n=0; } }
 // a frame that throws must never leave a black screen: paint the error where it can be read and keep going
 const ERRS={seen:new Set(),last:''};
 function showErr(e){ const msg=(e&&e.message||String(e))+' @'+((e&&e.stack||'').split(String.fromCharCode(10))[1]||'').trim().slice(-40); ERRS.last=msg;
