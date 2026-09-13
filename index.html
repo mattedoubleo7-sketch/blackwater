@@ -2276,13 +2276,15 @@ function stairwells(){
       for(let i=obs.length-1;i>=0;i--){ const o=obs[i]; if(o.floor||!o.solid) continue; const keep=o.kind==='wall'||o.kind==='wwall'||o.kind==='door'||o.kind==='window'||o.kind==='rail'; if(keep) continue;
         const hit=o.s==='r'?(o.x<x1&&o.x+o.w>x0&&o.y<y1&&o.y+o.h>y0):(o.x>x0-o.r&&o.x<x1+o.r&&o.y>y0-o.r&&o.y<y1+o.r); if(!hit) continue; obs.splice(i,1); if(o.kind==='prop'){ const k=props.indexOf(o.prop); if(k>=0) props.splice(k,1); } }
       for(let i=decor.length-1;i>=0;i--){ const d=decor[i]; if(d.x>x0&&d.x<x1&&d.y>y0&&d.y<y1) decor.splice(i,1); }
-      const rl=STAIR_LEN+8; if(dx){ const rx=Math.min(q.x,q.x+dx*rl)-4; addRect(rx,q.y-STAIR_HW-6,rl+8,6,'rail',{stair:true}); addRect(rx,q.y+STAIR_HW,rl+8,6,'rail',{stair:true}); }
-      else { const ry=Math.min(q.y,q.y+dy*rl)-4; addRect(q.x-STAIR_HW-6,ry,6,rl+8,'rail',{stair:true}); addRect(q.x+STAIR_HW,ry,6,rl+8,'rail',{stair:true}); } } } }
+      const rl=STAIR_LEN+8, deco={stair:true,solid:false,sight:false,bullet:false}; if(dx){ const rx=Math.min(q.x,q.x+dx*rl)-4; addRect(rx,q.y-STAIR_HW-6,rl+8,6,'rail',deco); addRect(rx,q.y+STAIR_HW,rl+8,6,'rail',deco); }
+      else { const ry=Math.min(q.y,q.y+dy*rl)-4; addRect(q.x-STAIR_HW-6,ry,6,rl+8,'rail',deco); addRect(q.x+STAIR_HW,ry,6,rl+8,'rail',deco); } } } }
 // where an actor stands on a stair run: {h,t} with t 0 at the foot, 1 at the top — or null
 function stairProbe(a){ if(!UG) return null; const l=layerOf(a);
   for(const h of hatches){ if(h.kind!=='stairs'||h.dx==null||(h.a!==l&&h.b!==l)) continue; const q=stairPos(h,l); const px=a.x-q.x, py=a.y-q.y; const along=px*h.dx+py*h.dy, across=Math.abs(px*h.dy-py*h.dx);
     if(across>STAIR_HW+4||along<-8||along>STAIR_LEN+8) continue; return {h,t:clamp(along/STAIR_LEN,0,1),l}; } return null; }
-function stairTick(){ for(const a of players){ if(a.dead) continue; const sp=stairProbe(a); a.stair=sp; if(!sp) continue; const {h,t,l}=sp;
+function stairTick(){ for(const a of players){ if(a.dead) continue; const sp=stairProbe(a); const was=a.stair; a.stair=sp; if(!sp){ a.stairFrom=null; continue; } const {h,t,l}=sp;
+    if(!was||was.h!==h){ a.stairFrom = (l===h.a&&t<.3)?'foot' : (l===h.b&&t>.7)?'top' : 'side'; }   // where you stepped on
+    if(a.stairFrom==='side'){ a.stair=null; continue; }
     if(h.key&&!a.hasKey){ if(l===h.a&&t>.25){ a.x-=h.dx*4; a.y-=h.dy*4; a.vx=a.vy=0; if(a===P) flash("LOCKED — the owner's key opens this"); } continue; }
     if(tNow<(a.hatchAt||0)+250) continue;
     if(l===h.a&&t>=.52) layerJump(a,h.b); else if(l===h.b&&t<=.48) layerJump(a,h.a); } }
@@ -3732,7 +3734,7 @@ function motionBlur(){ if(!GFX.mblur||gfxLow()||!P||P.dead) { MB.amt=0; return; 
 // on a staircase both floors exist at once: the one you're heading for is drawn over the one you're leaving,
 // as strong as how far up (or down) you've walked, rising or settling into place
 function renderStairs(){
-  const sp=P&&!P.dead?stairProbe(P):null; if(!sp||!UG){ render(); return; }
+  const sp=P&&!P.dead&&P.stairFrom&&P.stairFrom!=='side'?stairProbe(P):null; if(!sp||!UG){ render(); return; }
   const {h,t,l}=sp; const other=l===h.a?h.b:h.a; const e=clamp((l===h.a?t:1-t)*2.2,0,1); if(e<=.02){ render(); return; }   // the other floor is fully in by the time you change over
   if(!ghostCv) ghostCv=document.createElement('canvas'); if(ghostCv.width!==cv.width||ghostCv.height!==cv.height){ ghostCv.width=cv.width; ghostCv.height=cv.height; }
   const delta=(other-l)*UG, mainCtx=ctx; ctx=ghostCv.getContext('2d'); GHOST=true; P.y+=delta; cam.y+=delta;
