@@ -289,6 +289,10 @@
             <div class="meta">respawn · 5 opponents · 8 kits</div>
           </div>
         </div>
+        <div class="row" id="rowMap">
+          <span class="lbl">MAP</span>
+          <div class="opts" id="mapOpts"></div>
+        </div>
         <div class="row" id="rowBots">
           <span class="lbl">OPPONENTS</span>
           <div class="opts"><b data-bots="7">7</b><b data-bots="13" class="sel">13</b><b data-bots="19">19</b><b data-bots="25">25</b></div>
@@ -673,6 +677,7 @@ let lamps=[];
 let zone, tNow=0, hitstop=0, shake=0, alive=0, kills=0, startT=0, running=false, ended=false;
 // public servers run battle-royale rounds: a warm-up lobby with respawns, then the fog, then a winner
 const IO_RD={phase:'lobby', until:0, startAt:0, winner:null, n:0};
+let actorN=0;   // server-side actor ids (players and bots) so clients can tell everyone apart
 const brRules=()=>MODE==='br' || (MODE==='io' && IO_RD.phase==='live');
 const DOWN_POOL=100, DOWN_BLEED=2.2;   // downed: a 100-point pool that bleeds out in ~45 s; gunfire and the fog drain it faster
 let cam={x:0,y:0};
@@ -700,6 +705,16 @@ function buildSegs(){
   }
   const M=MAP;
   segs.push({x1:0,y1:0,x2:M,y2:0},{x1:M,y1:0,x2:M,y2:M},{x1:M,y1:M,x2:0,y2:M},{x1:0,y1:M,x2:0,y2:0});
+  segGrid=new Map();
+  for(const sg of segs){ sg.st=0; const x0=Math.floor(Math.min(sg.x1,sg.x2)/SEGC), x1=Math.floor(Math.max(sg.x1,sg.x2)/SEGC), y0=Math.floor(Math.min(sg.y1,sg.y2)/SEGC), y1=Math.floor(Math.max(sg.y1,sg.y2)/SEGC);
+    for(let cx=x0;cx<=x1;cx++) for(let cy=y0;cy<=y1;cy++){ const k=cx*4096+cy; let a=segGrid.get(k); if(!a) segGrid.set(k,a=[]); a.push(sg); } }
+}
+const SEGC=480; let segGrid=new Map(), segStamp=0;
+function segsIn(minx,miny,maxx,maxy){ // every segment whose cell touches the box, each once
+  const out=[]; segStamp++;
+  const x0=Math.floor(minx/SEGC), x1=Math.floor(maxx/SEGC), y0=Math.floor(miny/SEGC), y1=Math.floor(maxy/SEGC);
+  for(let cx=x0;cx<=x1;cx++) for(let cy=y0;cy<=y1;cy++){ const a=segGrid.get(cx*4096+cy); if(!a) continue; for(const sg of a){ if(sg.st!==segStamp){ sg.st=segStamp; out.push(sg); } } }
+  return out;
 }
 function borderWalls(){
   const M=MAP, T=60;
@@ -756,22 +771,38 @@ function lootRoll(q){
 let lootN=0;   // ids let a server tell clients exactly which item went away
 function spawnLoot(x,y,it){ if(!it)return; loot.push(Object.assign({x,y,vx:0,vy:0,born:tNow},it,{lid:++lootN})); }
 
-function genWorld(){
-  MAP = MODE==='kit' ? 1700 : 3400;
-  const sc = (MAP/3400)**2;
-  obs=[]; loot=[]; bullets=[]; parts=[]; decals=[]; nades=[]; bots=[]; lootN=0;
+/* ───────────────────────── maps ─────────────────────────
+   Every map is a generator over the same primitives. Outdoor maps are grass with buildings;
+   indoor maps lay a concrete floor over everything and carve rooms out of walls.            */
+const MAPS={
+  strip: {name:'THE STRIP',    size:7600, kind:'out', blurb:'open fields, thirteen-odd buildings, tree lines'},
+  hollow:{name:'HOLLOW ROAD',  size:7600, kind:'out', blurb:'a village on a crossroads: houses, yards, a church'},
+  docks: {name:'THE DOCKS',    size:7600, kind:'out', blurb:'container yards and warehouses on the water'},
+  bunker:{name:'THE BUNKER',   size:6000, kind:'in',  blurb:'a concrete warren of rooms and halls, no sky'},
+  depot: {name:'COLD STORAGE', size:6400, kind:'in',  blurb:'shelving aisles, freezer rooms, a loading dock'},
+};
+const MAP_IDS=Object.keys(MAPS); let MAPID='strip';
+const fence=(x,y,w,h)=>addRect(x,y,w,h,'fence',{sight:false,bullet:false});
+const road=(x,y,w,h)=>addRect(x,y,w,h,'road',{sight:false,solid:false,bullet:false,floor:true,road:true});
+const water=(x,y,w,h)=>addRect(x,y,w,h,'water',{sight:false,bullet:false,water:true});
+const container=(x,y,w,h)=>addRect(x,y,w,h,'container',{col:spick(['#7a3b2e','#2f5f7a','#5f6a34','#8a7a2a','#4a4f57','#6b3f6a'])});
+const shelf=(x,y,w,h)=>addRect(x,y,w,h,'shelf');
+const floorAll=()=>addRect(0,0,MAP,MAP,'floor',{sight:false,solid:false,bullet:false,floor:true,indoor:true});
+const lampAt=(x,y,kind,r)=>{ if(x>60&&y>60&&x<MAP-60&&y<MAP-60) lamps.push({x,y,kind:kind||'lamp',r:r||(kind==='fire'?230:300),ph:srnd(TAU)}); };
+const barrel=(x,y)=>{ lampAt(x,y,'fire'); addCirc(x,y,15,'rock'); };
+function scatter(G,n,fn){ for(let i=0;i<n;i++){ const x=srnd(MAP-90,90),y=srnd(MAP-90,90); fn(x,y); } }
+
+function genStrip(G){ const {free,N,sc}=G;
   // buildings
   let tries=0;
   const placed=[];
-  const nBuild = MODE==='kit' ? 6 : 13;
+  const nBuild = MODE==='kit' ? 6 : N(13);
   while(placed.length<nBuild && tries++<400){
     const bw=srnd(430,230), bh=srnd(380,200);
     const bx=srnd(MAP-bw-150,150), by=srnd(MAP-bh-150,150);
     if(placed.some(p=>bx<p.x+p.w+150&&bx+bw>p.x-150&&by<p.y+p.h+150&&by+bh>p.y-150)) continue;
     placed.push({x:bx,y:by,w:bw,h:bh}); building(bx,by,bw,bh);
   }
-  const free=(x,y,r)=>!overlaps(x,y,r);
-  const N=n=>Math.round(n*sc);
   for(let i=0;i<N(130);i++){ const x=srnd(MAP-80,80),y=srnd(MAP-80,80),r=srnd(38,24); if(free(x,y,r))addCirc(x,y,r,'tree'); }
   for(let i=0;i<N(55);i++){ const x=srnd(MAP-80,80),y=srnd(MAP-80,80),r=srnd(34,20); if(free(x,y,r))addCirc(x,y,r,'rock'); }
   for(let i=0;i<N(70);i++){ const x=srnd(MAP-80,80),y=srnd(MAP-80,80),r=srnd(40,28); if(free(x,y,r))addCirc(x,y,r,'bush'); }
@@ -783,8 +814,110 @@ function genWorld(){
     if(srand()<.8 && lx>60&&ly>60&&lx<MAP-60&&ly<MAP-60) lamps.push({x:lx,y:ly,kind:'lamp',r:300,ph:srnd(TAU)}); }
   for(let i=0;i<N(9);i++){ const x=srnd(MAP-120,120),y=srnd(MAP-120,120); if(free(x,y,60)) lamps.push({x,y,kind:'lamp',r:280,ph:srnd(TAU)}); }
   for(let i=0;i<N(11);i++){ const x=srnd(MAP-120,120),y=srnd(MAP-120,120); if(free(x,y,40)){ lamps.push({x,y,kind:'fire',r:230,ph:srnd(TAU)}); addCirc(x,y,15,'rock'); } }
+}
+
+function genHollow(G){ const {free,N}=G;
+  const placed=[]; const RW=150, M=MAP;
+  const roads=[{x:M/2-RW/2,y:0,w:RW,h:M},{x:0,y:M/2-RW/2,w:M,h:RW},{x:0,y:M*.22-RW/2,w:M,h:RW},{x:0,y:M*.78-RW/2,w:M,h:RW},{x:M*.24-RW/2,y:M*.22,w:RW,h:M*.56},{x:M*.76-RW/2,y:M*.22,w:RW,h:M*.56}];
+  for(const r of roads) road(r.x,r.y,r.w,r.h);
+  const onRoad=(x,y,w,h)=>roads.some(r=>x<r.x+r.w+40&&x+w>r.x-40&&y<r.y+r.h+40&&y+h>r.y-40);
+  const put=(bx,by,bw,bh)=>{ if(bx<120||by<120||bx+bw>M-120||by+bh>M-120) return false; if(onRoad(bx,by,bw,bh)) return false;
+    if(placed.some(p=>bx<p.x+p.w+90&&bx+bw>p.x-90&&by<p.y+p.h+90&&by+bh>p.y-90)) return false; placed.push({x:bx,y:by,w:bw,h:bh}); building(bx,by,bw,bh); return true; };
+  // the church on the crossroads, then houses strung along every road
+  put(M/2+RW/2+120, M/2-RW/2-560, 560, 440);
+  for(const r of roads){ const vert=r.h>r.w;
+    for(let t=200;t<(vert?r.h:r.w)-300;t+=srnd(560,380)){ for(const side of [-1,1]){ if(srand()<.25) continue; const bw=srnd(340,200), bh=srnd(300,190);
+      const bx=vert?(side<0?r.x-90-bw:r.x+r.w+90):r.x+t, by=vert?r.y+t:(side<0?r.y-90-bh:r.y+r.h+90);
+      if(put(bx,by,bw,bh) && srand()<.5){ // a yard with a fence and a gap
+        const fx=bx-70,fy=by-70,fw=bw+140,fh=bh+140, gap=srnd(.7,.2);
+        fence(fx,fy,fw*gap-50,10); fence(fx+fw*gap+50,fy,fw-fw*gap-50,10); fence(fx,fy+fh-10,fw,10); fence(fx,fy,10,fh); fence(fx+fw-10,fy,10,fh); } } } }
+  // woods in clusters, a few loose trees, bushes everywhere
+  for(let c=0;c<N(26);c++){ const cx=srnd(M-300,300),cy=srnd(M-300,300); if(onRoad(cx-150,cy-150,300,300)) continue;
+    for(let i=0;i<srint(4,9);i++){ const x=cx+srnd(190,-190),y=cy+srnd(190,-190),r=srnd(40,24); if(free(x,y,r)&&!onRoad(x-r,y-r,r*2,r*2)) addCirc(x,y,r,'tree'); } }
+  scatter(G,N(60),(x,y)=>{ const r=srnd(40,26); if(free(x,y,r)&&!onRoad(x-r,y-r,r*2,r*2)) addCirc(x,y,r,'bush'); });
+  scatter(G,N(30),(x,y)=>{ const r=srnd(32,20); if(free(x,y,r)&&!onRoad(x-r,y-r,r*2,r*2)) addCirc(x,y,r,'rock'); });
+  scatter(G,N(80),(x,y)=>{ const sz=srnd(46,34); if(free(x,y,sz)&&!onRoad(x,y,sz,sz)) addRect(x,y,sz,sz,'crate'); });
+  // street lamps along the roads, barrels in the yards
+  for(const r of roads){ const vert=r.h>r.w; for(let t=300;t<(vert?r.h:r.w)-200;t+=640){ const side=(Math.floor(t/640)%2)?1:-1; lampAt(vert?r.x+(side<0?-30:r.w+30):r.x+t, vert?r.y+t:r.y+(side<0?-30:r.h+30)); } }
+  scatter(G,N(10),(x,y)=>{ if(free(x,y,40)&&!onRoad(x-40,y-40,80,80)) barrel(x,y); });
+}
+
+function genDocks(G){ const {free,N}=G; const M=MAP;
+  // the water: the whole east and south edge, a basin cut into the corner
+  water(M-1300,0,1300,M); water(0,M-1300,M-1300,1300); water(M*.36,M*.62,M*.26,M-1300-M*.62);
+  const quay=(x,y,w,h)=>addRect(x,y,w,h,'wall');   // low quay walls along the water so the edge reads
+  quay(M-1300-14,0,14,M-1300-14); quay(0,M-1300-14,M-1300,14); quay(M*.36-14,M*.62-14,M*.26+28,14); quay(M*.36-14,M*.62,14,M-1300-M*.62); quay(M*.62,M*.62,14,M-1300-M*.62);
+  const placed=[]; const put=(bx,by,bw,bh)=>{ if(placed.some(p=>bx<p.x+p.w+120&&bx+bw>p.x-120&&by<p.y+p.h+120&&by+bh>p.y-120)) return false; if(overlaps(bx+bw/2,by+bh/2,Math.max(bw,bh)/2)) return false; placed.push({x:bx,y:by,w:bw,h:bh}); building(bx,by,bw,bh); return true; };
+  // warehouses
+  for(let i=0,t=0;i<N(4)+1&&t<200;t++){ const bw=srnd(760,520), bh=srnd(520,360), bx=srnd(M-1300-bw-200,200), by=srnd(M-1300-bh-200,200); if(put(bx,by,bw,bh)) i++; }
+  // container yards: rows with lanes, some boxes turned
+  for(let y=0;y<N(5)+2;y++){ const yx=srnd(M-1300-1200,150), yy=srnd(M-1300-900,150); if(placed.some(p=>yx<p.x+p.w+60&&yx+1100>p.x-60&&yy<p.y+p.h+60&&yy+800>p.y-60)) continue;
+    for(let r=0;r<4;r++) for(let c=0;c<4;c++){ if(srand()<.3) continue; const cx=yx+c*270, cy=yy+r*200; if(srand()<.2) container(cx,cy,90,240); else container(cx,cy,240,90); }
+    lampAt(yx-40,yy-40); lampAt(yx+1100,yy+780); }
+  // the crane, cranes' feet, crates by the quay
+  for(let i=0;i<N(6);i++){ const x=srnd(M-1300-200,300), y=M-1300-srnd(400,120); if(free(x,y,50)) addCirc(x,y,34,'rock'); }
+  scatter(G,N(110),(x,y)=>{ const sz=srnd(46,34); if(free(x,y,sz)) addRect(x,y,sz,sz,'crate'); });
+  scatter(G,N(40),(x,y)=>{ const r=srnd(38,24); if(free(x,y,r)) addCirc(x,y,r,'tree'); });
+  scatter(G,N(40),(x,y)=>{ const r=srnd(40,26); if(free(x,y,r)) addCirc(x,y,r,'bush'); });
+  for(const b of placed){ lampAt(b.x-40,b.y+b.h/2); lampAt(b.x+b.w+40,b.y+b.h/2); }
+  for(let i=0;i<8;i++) lampAt(M-1300-60, i*(M-1300)/8+300); for(let i=0;i<8;i++) lampAt(i*(M-1300)/8+300, M-1300-60);
+  scatter(G,N(12),(x,y)=>{ if(free(x,y,40)) barrel(x,y); });
+}
+
+function genBunker(G){ const {free,N}=G; const M=MAP, C=8, cell=M/C, T=22, DOOR=130;
+  floorAll();
+  // rooms on a grid: a maze spanning tree guarantees you can reach everything, extra doors make it a building not a maze
+  const cells=[]; for(let i=0;i<C;i++){ cells[i]=[]; for(let j=0;j<C;j++) cells[i][j]={hall:0,seen:false,doorR:false,doorD:false}; }
+  let hallN=0; for(let h=0;h<6;h++){ const i=srint(0,C-2), j=srint(0,C-2); if(cells[i][j].hall||cells[i+1][j].hall||cells[i][j+1].hall||cells[i+1][j+1].hall) continue; hallN++; cells[i][j].hall=cells[i+1][j].hall=cells[i][j+1].hall=cells[i+1][j+1].hall=hallN; }
+  const stack=[[srint(0,C-1),srint(0,C-1)]]; cells[stack[0][0]][stack[0][1]].seen=true;
+  while(stack.length){ const [i,j]=stack[stack.length-1]; const nb=[[i+1,j,'R'],[i-1,j,'L'],[i,j+1,'D'],[i,j-1,'U']].filter(([a,b])=>a>=0&&b>=0&&a<C&&b<C&&!cells[a][b].seen);
+    if(!nb.length){ stack.pop(); continue; } const [a,b,d]=nb[srint(0,nb.length-1)]; cells[a][b].seen=true;
+    if(d==='R') cells[i][j].doorR=true; else if(d==='L') cells[a][b].doorR=true; else if(d==='D') cells[i][j].doorD=true; else cells[a][b].doorD=true; stack.push([a,b]); }
+  for(let i=0;i<C;i++) for(let j=0;j<C;j++){ if(i<C-1&&srand()<.35) cells[i][j].doorR=true; if(j<C-1&&srand()<.35) cells[i][j].doorD=true; }
+  const wall=(x,y,w,h)=>addRect(x,y,w,h,'wall');
+  for(let i=0;i<C;i++) for(let j=0;j<C;j++){ const x0=i*cell, y0=j*cell, c=cells[i][j];
+    if(i<C-1){ const same=c.hall&&c.hall===cells[i+1][j].hall; if(!same){ const x=x0+cell-T/2; if(c.doorR){ const g=y0+srnd(cell-DOOR-60,60); wall(x,y0,T,g-y0); wall(x,g+DOOR,T,y0+cell-(g+DOOR)); } else wall(x,y0,T,cell); } }
+    if(j<C-1){ const same=c.hall&&c.hall===cells[i][j+1].hall; if(!same){ const y=y0+cell-T/2; if(c.doorD){ const g=x0+srnd(cell-DOOR-60,60); wall(x0,y,g-x0,T); wall(g+DOOR,y,x0+cell-(g+DOOR),T); } else wall(x0,y,cell,T); } }
+    // furniture
+    const r=srand();
+    if(r<.4) for(let k=0;k<srint(2,4);k++){ const sz=srnd(46,34), x=x0+srnd(cell-120,60), y=y0+srnd(cell-120,60); if(free(x,y,sz)) addRect(x,y,sz,sz,'crate'); }
+    else if(r<.62){ const horiz=srand()<.5; const x=x0+srnd(cell-500,80), y=y0+srnd(cell-500,80); if(free(x+150,y+15,150)) horiz?shelf(x,y,srnd(420,260),28):shelf(x,y,28,srnd(420,260)); }
+    else if(r<.75) for(let k=0;k<srint(1,3);k++){ const x=x0+srnd(cell-160,80), y=y0+srnd(cell-160,80); if(free(x,y,40)) addCirc(x,y,26,'rock'); }
+    if(srand()<.7) lampAt(x0+cell/2+srnd(120,-120), y0+cell/2+srnd(120,-120)); else if(srand()<.35) barrel(x0+srnd(cell-200,100), y0+srnd(cell-200,100));
+    if(MODE!=='kit' && srand()<.5) for(let k=0;k<srint(1,2);k++){ const x=x0+srnd(cell-140,70), y=y0+srnd(cell-140,70); if(free(x,y,20)) spawnLoot(x,y,lootRoll(.55)); }
+  }
+}
+
+function genDepot(G){ const {free,N}=G; const M=MAP;
+  floorAll();
+  const placed=[];
+  // the office block and three freezer rooms
+  const put=(bx,by,bw,bh)=>{ placed.push({x:bx,y:by,w:bw,h:bh}); building(bx,by,bw,bh); };
+  put(140,140,760,520); put(M-820,140,680,460); put(140,M-680,620,540); put(M-900,M-760,760,620);
+  // shelving blocks: rows of long racks with gaps, lanes between blocks
+  const blocks=[]; for(let bx=1100;bx<M-1100;bx+=1500) for(let by=900;by<M-900;by+=1300) blocks.push({x:bx+srnd(120,-120),y:by+srnd(100,-100)});
+  for(const b of blocks){ const rows=srint(4,6), len=srnd(1000,700);
+    for(let r=0;r<rows;r++){ const y=b.y+r*190; let x=b.x; while(x<b.x+len){ const seg=Math.min(srnd(420,180), b.x+len-x); shelf(x,y,seg,30); x+=seg+srnd(180,110); } }
+    lampAt(b.x-60,b.y+rows*95); lampAt(b.x+len+60,b.y+rows*95); lampAt(b.x+len/2,b.y-80); }
+  // loading dock along the east wall: containers and pallets
+  for(let i=0;i<10;i++){ const y=1000+i*520; if(y>M-900) break; container(M-420,y,240,90); if(srand()<.6) container(M-420,y+120,240,90); }
+  scatter(G,N(80),(x,y)=>{ const sz=srnd(46,34); if(free(x,y,sz)&&!placed.some(p=>x>p.x-40&&x<p.x+p.w+40&&y>p.y-40&&y<p.y+p.h+40)) addRect(x,y,sz,sz,'crate'); });
+  scatter(G,N(14),(x,y)=>{ if(free(x,y,40)&&!placed.some(p=>x>p.x-40&&x<p.x+p.w+40&&y>p.y-40&&y<p.y+p.h+40)) addCirc(x,y,26,'rock'); });
+  for(let x=700;x<M-600;x+=900) for(let y=700;y<M-600;y+=900) if(srand()<.6) lampAt(x+srnd(150,-150),y+srnd(150,-150));
+  scatter(G,N(8),(x,y)=>{ if(free(x,y,40)) barrel(x,y); });
+}
+
+function genWorld(){
+  MAP = MODE==='kit' ? 1700 : MAPS[MAPID].size;
+  const sc = (MAP/3400)**2;
+  obs=[]; loot=[]; bullets=[]; parts=[]; decals=[]; nades=[]; bots=[]; lamps=[]; if(!IS_SERVER) lootN=0;
+  const free=(x,y,r)=>!overlaps(x,y,r);
+  const N=n=>Math.round(n*sc);
+  const G={free,N,sc};
+  const gen = MODE==='kit' ? genStrip : ({strip:genStrip,hollow:genHollow,docks:genDocks,bunker:genBunker,depot:genDepot})[MAPID]||genStrip;
+  gen(G);
   if(MODE!=='kit')
-    for(let i=0;i<80;i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(free(x,y,20)) spawnLoot(x,y,lootRoll(.35)); }
+    for(let i=0;i<N(80);i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(free(x,y,20)) spawnLoot(x,y,lootRoll(.35)); }
   borderWalls();
   buildSegs();
   zone = MODE!=='br'
@@ -832,7 +965,7 @@ function los(x1,y1,x2,y2){
   const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||.001;
   const ux=dx/len, uy=dy/len;
   const minx=Math.min(x1,x2)-4,maxx=Math.max(x1,x2)+4,miny=Math.min(y1,y2)-4,maxy=Math.max(y1,y2)+4;
-  for(const s of segs){
+  for(const s of segsIn(minx,miny,maxx,maxy)){
     if(Math.max(s.x1,s.x2)<minx||Math.min(s.x1,s.x2)>maxx||Math.max(s.y1,s.y2)<miny||Math.min(s.y1,s.y2)>maxy) continue;
     const t=raySeg(x1,y1,ux,uy,s);
     if(t>0&&t<len) return false;
@@ -841,7 +974,7 @@ function los(x1,y1,x2,y2){
 }
 function visPoly(px,py,R){
   const near=[], ang=[];
-  for(const s of segs){
+  for(const s of segsIn(px-R,py-R,px+R,py+R)){
     if(Math.min(s.x1,s.x2)>px+R||Math.max(s.x1,s.x2)<px-R||
        Math.min(s.y1,s.y2)>py+R||Math.max(s.y1,s.y2)<py-R) continue;
     near.push(s);
@@ -1540,7 +1673,7 @@ function ioRound(){
     if(al.length<=1 || hum===0 || tNow-IO_RD.startAt>420000) ioRoundEnd(al.length===1?al[0]:null);
   } else if(IO_RD.phase==='over'){ if(tNow>=IO_RD.until) ioRoundReset(); }
 }
-function ioLootFresh(){ loot=[]; lootN=0; for(let i=0;i<110;i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(!overlaps(x,y,20)) spawnLoot(x,y,lootRoll(.35)); } }
+function ioLootFresh(){ loot=[]; for(let i=0;i<110;i++){ const x=srnd(MAP-60,60),y=srnd(MAP-60,60); if(!overlaps(x,y,20)) spawnLoot(x,y,lootRoll(.35)); } }
 function ioRoundStart(){
   IO_RD.phase='live'; IO_RD.n++; IO_RD.startAt=tNow; IO_RD.winner=null;
   ioLootFresh();
@@ -1555,6 +1688,7 @@ function ioRoundEnd(w){
 }
 function ioRoundReset(){
   IO_RD.phase='lobby'; IO_RD.until=players.length?tNow+20000:0; IO_RD.winner=null;
+  const nb=bots.length; MAPID=MAP_IDS[IO_RD.n % MAP_IDS.length]; genWorld(); spawnBots(nb); for(const b of bots) b.id=++actorN; SRV_LOG.push('next map: '+MAPS[MAPID].name);
   zone={x:MAP/2,y:MAP/2,r:MAP*1.6,tx:MAP/2,ty:MAP/2,tr:MAP*1.6,stage:0,next:1e12,moving:false,dmg:0};
   ioLootFresh();
   for(const a of [...players,...bots]) respawn(a);
@@ -2094,15 +2228,32 @@ function drawActor(a, isP){
   }
 }
 function drawObstacle(o){
-  if(o.floor){ ctx.fillStyle='#2c3038'; ctx.fillRect(o.x,o.y,o.w,o.h);
-    ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.lineWidth=1;
-    for(let x=o.x;x<o.x+o.w;x+=48){ ctx.beginPath(); ctx.moveTo(x,o.y); ctx.lineTo(x,o.y+o.h); ctx.stroke(); }
-    for(let y=o.y;y<o.y+o.h;y+=48){ ctx.beginPath(); ctx.moveTo(o.x,y); ctx.lineTo(o.x+o.w,y); ctx.stroke(); }
+  if(o.floor){
+    // only the part on screen: indoor maps are one floor the size of the world
+    const x0=Math.max(o.x,cam.x-300), y0=Math.max(o.y,cam.y-300), x1=Math.min(o.x+o.w,cam.x+VWw+300), y1=Math.min(o.y+o.h,cam.y+VHw+300); if(x1<=x0||y1<=y0) return;
+    if(o.road){ ctx.fillStyle='#23262b'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeStyle='rgba(210,200,150,.28)'; ctx.lineWidth=4; ctx.setLineDash([60,50]);
+      ctx.beginPath(); if(o.h>o.w){ ctx.moveTo(o.x+o.w/2,y0); ctx.lineTo(o.x+o.w/2,y1); } else { ctx.moveTo(x0,o.y+o.h/2); ctx.lineTo(x1,o.y+o.h/2); } ctx.stroke(); ctx.setLineDash([]); return; }
+    ctx.fillStyle=o.indoor?'#2a2d33':'#2c3038'; ctx.fillRect(x0,y0,x1-x0,y1-y0);
+    ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.lineWidth=1; const gs=o.indoor?96:48;
+    for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs){ if(x<o.x) continue; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke(); }
+    for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs){ if(y<o.y) continue; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); }
+    if(o.indoor){ ctx.fillStyle='rgba(0,0,0,.12)'; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs) for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs) if(((x/gs)+(y/gs))%3===0) ctx.fillRect(x+2,y+2,gs-4,gs-4); }
+    return; }
+  if(o.kind==='water'){ const x0=Math.max(o.x,cam.x-300), y0=Math.max(o.y,cam.y-300), x1=Math.min(o.x+o.w,cam.x+VWw+300), y1=Math.min(o.y+o.h,cam.y+VHw+300); if(x1<=x0||y1<=y0) return;
+    ctx.fillStyle='#16303c'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeStyle='rgba(120,180,200,.16)'; ctx.lineWidth=2;
+    for(let y=Math.floor(y0/70)*70;y<y1;y+=70){ ctx.beginPath(); for(let x=x0;x<=x1;x+=40){ const yy=y+Math.sin(x/90+tNow/900+y)*6; x===x0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); } ctx.stroke(); }
     return; }
   if(o.s==='r'){
     ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(o.x+5,o.y+6,o.w,o.h);
     if(o.kind==='wall'){ ctx.fillStyle='#4a4f57'; ctx.fillRect(o.x,o.y,o.w,o.h);
       ctx.fillStyle='#565c65'; ctx.fillRect(o.x,o.y,o.w,Math.min(6,o.h)); }
+    else if(o.kind==='container'){ ctx.fillStyle=o.col||'#5f6a34'; ctx.fillRect(o.x,o.y,o.w,o.h);
+      ctx.strokeStyle='rgba(0,0,0,.28)'; ctx.lineWidth=2; const horiz=o.w>=o.h;
+      for(let t=14;t<(horiz?o.w:o.h)-8;t+=14){ ctx.beginPath(); if(horiz){ ctx.moveTo(o.x+t,o.y+3); ctx.lineTo(o.x+t,o.y+o.h-3); } else { ctx.moveTo(o.x+3,o.y+t); ctx.lineTo(o.x+o.w-3,o.y+t); } ctx.stroke(); }
+      ctx.fillStyle='rgba(255,255,255,.10)'; ctx.fillRect(o.x,o.y,o.w,5); ctx.fillStyle='rgba(0,0,0,.35)'; if(horiz) ctx.fillRect(o.x+o.w-12,o.y,12,o.h); else ctx.fillRect(o.x,o.y+o.h-12,o.w,12); }
+    else if(o.kind==='shelf'){ ctx.fillStyle='#3a3f47'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillStyle='#4d535c'; ctx.fillRect(o.x,o.y,o.w,4);
+      const horiz=o.w>=o.h; for(let t=10;t<(horiz?o.w:o.h)-24;t+=44){ ctx.fillStyle=['#7a5f3c','#5b6b7a','#6b5a6a','#556b4a'][Math.floor(t/44)%4]; if(horiz) ctx.fillRect(o.x+t,o.y+8,26,o.h-14); else ctx.fillRect(o.x+8,o.y+t,o.w-14,26); } }
+    else if(o.kind==='fence'){ ctx.fillStyle='#5a4a33'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillStyle='#3d321f'; const horiz=o.w>=o.h; for(let t=0;t<(horiz?o.w:o.h);t+=60){ if(horiz) ctx.fillRect(o.x+t,o.y-2,8,o.h+4); else ctx.fillRect(o.x-2,o.y+t,o.w+4,8); } }
     else { ctx.fillStyle='#7a5f3c'; ctx.fillRect(o.x,o.y,o.w,o.h);
       ctx.strokeStyle='#5d482c'; ctx.lineWidth=3; ctx.strokeRect(o.x+3,o.y+3,o.w-6,o.h-6);
       ctx.beginPath(); ctx.moveTo(o.x,o.y); ctx.lineTo(o.x+o.w,o.y+o.h); ctx.stroke(); }
@@ -2401,8 +2552,8 @@ function drawMini(){
   const S=132, k=S/MAP;
   mctx.clearRect(0,0,S,S);
   mctx.fillStyle='#0b0f14'; mctx.fillRect(0,0,S,S);
-  mctx.fillStyle='#1a2430';
-  for(const o of obs){ if(o.floor) mctx.fillRect(o.x*k,o.y*k,o.w*k,o.h*k); }
+  for(const o of obs){ if(!o.floor) continue; mctx.fillStyle=o.indoor?'#141a22':o.road?'#2a2e35':'#1a2430'; mctx.fillRect(o.x*k,o.y*k,o.w*k,o.h*k); }
+  for(const o of obs){ if(o.floor||o.s!=='r') continue; if(o.kind==='water'){ mctx.fillStyle='#16303c'; mctx.fillRect(o.x*k,o.y*k,o.w*k,o.h*k); } else if(o.kind==='wall'||o.kind==='shelf'||o.kind==='container'){ mctx.fillStyle=o.kind==='wall'?'#4a5260':'#38404a'; mctx.fillRect(o.x*k,o.y*k,Math.max(1,o.w*k),Math.max(1,o.h*k)); } }
   if(MODE!=='kit'){
     mctx.strokeStyle='rgba(220,90,70,.9)'; mctx.lineWidth=1.2;
     mctx.beginPath(); mctx.arc(zone.x*k,zone.y*k,zone.r*k,0,TAU); mctx.stroke();
@@ -2478,7 +2629,7 @@ function hud(){
       zEl.textContent = P.dead ? 'spectating · next round after this one' : P.downed ? 'DOWNED · '+(touchMode?'HEAL':'E')+' bandage to get up · '+Math.ceil(P.downHp)+'%' : zone.moving ? 'fog closing' : 'fog holding';
       zEl.className = (P.dead||P.downed||zone.moving)?'warn':''; }
     else if(rd.phase==='over'){ $('alive').textContent=rd.alive; $('aliveLbl').textContent='round over'; zEl.textContent=(rd.winner?rd.winner+' wins':'nobody left')+' · next round in '+left+'s'; zEl.className='warn'; }
-    else { $('alive').textContent=P.kills|0; $('aliveLbl').textContent='warm-up kills'; zEl.textContent = P.dead ? 'respawning…' : P.downed ? 'DOWNED · '+(touchMode?'HEAL':'E')+' to bandage' : (left?'round starts in '+left+'s':'waiting for players')+' · '+IO.online+' online'; zEl.className=(P.dead||P.downed)?'warn':''; }
+    else { $('alive').textContent=P.kills|0; $('aliveLbl').textContent='warm-up kills'; zEl.textContent = P.dead ? 'respawning…' : P.downed ? 'DOWNED · '+(touchMode?'HEAL':'E')+' to bandage' : MAPS[MAPID].name+' · '+(left?'round starts in '+left+'s':'waiting for players')+' · '+IO.online+' online'; zEl.className=(P.dead||P.downed)?'warn':''; }
     const B=$('board'); B.style.display='block';
     B.innerHTML='<b>TOP</b>'+IO.board.map((r,i)=>`<div${r.me?' class="me"':''}><span>${i+1}</span>${r.name}<i>${r.kills}</i></div>`).join('');
   }
@@ -2600,7 +2751,7 @@ function ioJoin(){
   };
 }
 function ioStart(m){
-  MODE='io'; SEED=m.seed|0; tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0;
+  MODE='io'; SEED=m.seed|0; if(m.map&&MAPS[m.map]) MAPID=m.map; IO.seed=SEED; tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0;
   lights.length=0; ghosts.length=0; pings.length=0; hurtArcs.length=0; for(const k in pend) pend[k]=0;
   genWorld(); loot=[]; IO.known=new Set(); IO.byId=new Map(); IO.prev=IO.cur=null; IO.lastMe=null; IO.seq=0; IO.hist=[]; IO.lastInp=null;
   players=[]; bots=[];
@@ -2664,7 +2815,8 @@ function ioSnapshot(m){
   bullets=m.b.map(b=>({x:b[0],y:b[1],dx:b[2],dy:b[3]}));
   nades=m.n.map(n=>({x:n[0],y:n[1],fuse:tNow+n[2]}));
   IO.online=m.online; IO.board=m.board.map(r=>({name:r[0],kills:r[1],me:r[2]===IO.id}));
-  if(m.rd){ const was=IO.rd&&IO.rd.phase; IO.rd={phase:m.rd[0],left:m.rd[1],alive:m.rd[2],winner:m.rd[3],n:m.rd[4]}; IO.rdAt=performance.now();
+  if(m.rd){ const was=IO.rd&&IO.rd.phase; IO.rd={phase:m.rd[0],left:m.rd[1],alive:m.rd[2],winner:m.rd[3],n:m.rd[4],map:m.rd[5]}; IO.rdAt=performance.now();
+    if(IO.rd.map && MAPS[IO.rd.map] && IO.rd.map!==MAPID){ MAPID=IO.rd.map; SEED=IO.seed; genWorld(); loot=[]; IO.known=new Set(); decals=[]; bullets=[]; nades=[]; flash('MAP: '+MAPS[MAPID].name); }
     if(was&&was!==IO.rd.phase){ if(IO.rd.phase==='live'){ flash('ROUND '+IO.rd.n+' — LAST ONE BREATHING'); $('spect').style.display='none'; zone.r=MAP*.72; zone.tr=zone.r; zone.x=zone.tx=MAP/2; zone.y=zone.ty=MAP/2; zone.stage=0; zone.moving=false; }
       else if(IO.rd.phase==='over'){ flash(IO.rd.winner ? IO.rd.winner.toUpperCase()+' WINS' : 'NOBODY LEFT'); }
       else { flash('WARM-UP'); $('spect').style.display='none'; zone.r=zone.tr=MAP*1.6; zone.moving=false; } } }
@@ -2832,7 +2984,7 @@ function netRecv(m){
 function netStart(){
   if(!NET.host) return;
   const seed=(Math.random()*0x7fffffff)|0;
-  const cfg={seed, mode:MODE, bots: MODE==='kit'?NET.nbots:BOTN, kits:[MYKIT,NET.peerKit], names:[myName(),NET.peer||'friend'], delay:NET.delay};
+  const cfg={seed, mode:MODE, map:MAPID, bots: MODE==='kit'?NET.nbots:BOTN, kits:[MYKIT,NET.peerKit], names:[myName(),NET.peer||'friend'], delay:NET.delay};
   netSend({k:'go',...cfg});
   start({...cfg, me:0}); netMatchInit();
 }
@@ -2895,7 +3047,7 @@ function start(cfg){
   tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0; acc=0;
   lights.length=0; ghosts.length=0; pings.length=0; hurtArcs.length=0; mouse.down=false; mouse.right=false;
   for(const k in pend) pend[k]=0;
-  if(cfg){ MODE=cfg.mode; BOTN=cfg.bots; SEED=cfg.seed|0; } else SEED=(Math.random()*0x7fffffff)|0;
+  if(cfg){ MODE=cfg.mode; BOTN=cfg.bots; SEED=cfg.seed|0; if(cfg.map&&MAPS[cfg.map]) MAPID=cfg.map; } else SEED=(Math.random()*0x7fffffff)|0;
   genWorld();
   players=[];
   const n=cfg?2:1;
@@ -2967,10 +3119,15 @@ function buildLobby(){
     tap(el,()=>{ MODE=el.dataset.mode;
       document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));
       el.classList.add('sel');
-      $('rowBots').style.display = MODE==='br'?'flex':'none';
+      $('rowBots').style.display = MODE==='br'?'flex':'none'; $('rowMap').style.display = MODE==='br'?'flex':'none';
       startLabel();
       if(MODE==='kit') showTab('kits');
       A.click(); });
+  $('mapOpts').innerHTML = MAP_IDS.map(id=>`<b data-map="${id}"${id===MAPID?' class="sel"':''} title="${MAPS[id].blurb}">${MAPS[id].name}</b>`).join('');
+  for(const el of document.querySelectorAll('#mapOpts b'))
+    tap(el,()=>{ MAPID=el.dataset.map; menuWorld=null;
+      document.querySelectorAll('#mapOpts b').forEach(o=>o.classList.remove('sel'));
+      el.classList.add('sel'); A.click(); netSend({k:'map',map:MAPID}); });
   for(const el of document.querySelectorAll('#rowBots .opts b'))
     tap(el,()=>{ BOTN=+el.dataset.bots;
       document.querySelectorAll('#rowBots .opts b').forEach(o=>o.classList.remove('sel'));
@@ -2997,17 +3154,16 @@ function startLabel(){ const b=$('btnStart'); if(curTab==='io'){ b.textContent='
 $('btnAgain').addEventListener('click',()=>{A.on();openLobby();});
 const SRV_LOG=[];
 if(IS_SERVER){
-  let actorN=0;
   window.__SRV={
     A, LOG:SRV_LOG, IB, EMPTY_INP,
-    init(seed,nbots){ MODE='io'; SEED=seed|0; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); running=true; },
+    init(seed,nbots){ MODE='io'; SEED=seed|0; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); for(const b of bots) b.id=++actorN; running=true; },
     join(name){ const a=makeActor(0,0,false,name); a.id=++actorN; const sp=findSpawn([...players,...bots]); a.x=sp.x; a.y=sp.y; equipKit(a,'io'); a.streak=0; a.pendInp={...EMPTY_INP}; players.push(a);
       if(IO_RD.phase==='live' && tNow-IO_RD.startAt>45000){ a.dead=true; a.hp=0; } else if(IO_RD.phase==='live') alive++;
       return a; },
     leave(a){ const i=players.indexOf(a); if(i>=0){ players.splice(i,1); if(!a.dead) dropAll(a); } },
     input(a,arr){ const f=arr[3]|0; const q=a.pendInp||EMPTY_INP; a.pendInp={mx:+arr[0]||0,my:+arr[1]||0,ang:+arr[2]||0,f:f|(q.f&~IB_HELD),slot:(arr[4]|0)||q.slot,seq:arr[5]|0}; },
     step(){ stepSim(); },
-    get state(){ return {players,bots,loot,bullets,nades,obs,tNow,tick,zone,rd:IO_RD}; },
+    get state(){ return {players,bots,loot,bullets,nades,obs,tNow,tick,zone,rd:IO_RD,map:MAPID}; },
     wep, MELEE, GUNS, ARMOR_NAME,
   };
 }

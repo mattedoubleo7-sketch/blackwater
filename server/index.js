@@ -43,7 +43,7 @@ wss.on('connection', ws => {
       const a = SRV.join(name);
       c = { a, known:new Set(), name };
       clients.set(ws, c);
-      ws.send(JSON.stringify({k:'init', seed:SEED, id:a.id, x:a.x, y:a.y, online:clients.size}));
+      ws.send(JSON.stringify({k:'init', seed:SEED, id:a.id, x:a.x, y:a.y, online:clients.size, map:SRV.state.map}));
       SRV.LOG.push(`${name} drifted onto the strip${a.dead?' — spectating until the next round':''}`);
       console.log(`+ ${name} (${clients.size} online)`);
       return;
@@ -89,7 +89,8 @@ function broadcast(){
   const feed = SRV.LOG.splice(0), ev = events.splice(0);
   const crates = brokenCrates();
   const R = st.rd, aliveN = [...st.players, ...st.bots].filter(a=>!a.dead).length;
-  const rd = [R.phase, rem(R.until, now), aliveN, R.winner, R.n];
+  const rd = [R.phase, rem(R.until, now), aliveN, R.winner, R.n, st.map];
+  if(st.map !== lastMap){ lastMap = st.map; crateCount = -1; }
   const zn = st.zone, z = [Math.round(zn.x), Math.round(zn.y), Math.round(zn.r), Math.round(zn.tx), Math.round(zn.ty), Math.round(zn.tr), zn.moving?1:0, zn.stage];
   const lootIds = new Set(st.loot.map(l => l.lid));
   for(const [ws, c] of clients){
@@ -112,6 +113,6 @@ function brokenCrates(){ // crates that vanished since last snapshot, by positio
   crateCount = crates.length; lastCrates = crates.map(o=>[o.x,o.y]);
   return gone;
 }
-let lastCrates = [];
+let lastCrates = [], lastMap = null;
 
 server.listen(PORT, () => { console.log(`BLACKWATER public server on port ${PORT}`); loop(); });
