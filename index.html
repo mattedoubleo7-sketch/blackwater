@@ -774,7 +774,7 @@ function borderWalls(){
 
 function addDoor(x,y,w,h){ const d={s:'r',x,y,w,h,kind:'door',hp:Infinity,sight:true,solid:true,bullet:true,open:0,want:0,horiz:w>=h,wood:true}; obs.push(d); doors.push(d); return d; }
 function doorTick(){ const list=[...players,...bots];
-  for(const d of doors){ let near=false; const cx=d.x+d.w/2, cy=d.y+d.h/2; for(const a of list){ if(a.dead) continue; if(Math.abs(a.x-cx)<70&&Math.abs(a.y-cy)<70){ near=true; break; } }
+  for(const d of doors){ let near=false; const cx=d.x+d.w/2, cy=d.y+d.h/2; for(const a of list){ if(a.dead) continue; const qx=clamp(a.x,d.x,d.x+d.w), qy=clamp(a.y,d.y,d.y+d.h); if(dist2(a.x,a.y,qx,qy)<64*64){ near=true; break; } }
     if(near) d.want=1, d.lastNear=tNow; else if(tNow-(d.lastNear||0)>1100) d.want=0;
     const was=d.open; d.open=clamp(d.open+(d.want?1:-1)*STEP*3.2,0,1);
     const closed=d.open<.5; d.solid=closed; d.bullet=closed; d.sight=closed;
@@ -784,15 +784,16 @@ function building(bx,by,bw,bh,mat){
   const gapSide = srint(0,3), gapAt = srnd(.65,.2);
   const wood = mat==='wood' || (mat!=='concrete' && srand()<.4);
   const wall=(x,y,w,h)=>addRect(x,y,w,h,wood?'wwall':'wall',wood?{hp:1}:undefined);
+  const keep=[]; const clear=(x,y,w,h)=>keep.push({x:x-70,y:y-70,w:w+140,h:h+140});   // a doorway and the space in front of it
   // outer walls, one front door
   for(const [side,y] of [[0,by],[2,by+bh-t]]){
     if(gapSide===side){ const g=bx+gapAt*(bw-door);
-      wall(bx,y,g-bx,t); wall(g+door,y,bx+bw-(g+door),t); addDoor(g,y,door,t); }
+      wall(bx,y,g-bx,t); wall(g+door,y,bx+bw-(g+door),t); addDoor(g,y,door,t); clear(g,y,door,t); }
     else wall(bx,y,bw,t);
   }
   for(const [side,x] of [[3,bx],[1,bx+bw-t]]){
     if(gapSide===side){ const g=by+gapAt*(bh-door);
-      wall(x,by,t,g-by); wall(x,g+door,t,by+bh-(g+door)); addDoor(x,g,t,door); }
+      wall(x,by,t,g-by); wall(x,g+door,t,by+bh-(g+door)); addDoor(x,g,t,door); clear(x,g,t,door); }
     else wall(x,by,t,bh);
   }
   addRect(bx,by,bw,bh,'floor',{sight:false,solid:false,bullet:false,floor:true,bldg:true,wood});
@@ -800,9 +801,9 @@ function building(bx,by,bw,bh,mat){
   const ix=bx+t, iy=by+t, iw=bw-2*t, ih=bh-2*t;
   const cols=iw>=300?2:1, rows=ih>=250?2:1;
   const cw=iw/cols, rh=ih/rows;
-  if(cols===2){ const x=ix+cw-t/2; for(let r=0;r<rows;r++){ const y0=iy+r*rh; const g=y0+srnd(rh-door-30,15); wall(x,y0,t,g-y0); wall(x,g+door,t,y0+rh-(g+door)); } }
-  if(rows===2){ const y=iy+rh-t/2; for(let c=0;c<cols;c++){ const x0=ix+c*cw; const g=x0+srnd(cw-door-30,15); wall(x0,y,g-x0,t); wall(g+door,y,x0+cw-(g+door),t); } }
-  const fit=(x,y,w,h)=>{ if(x<ix+6||y<iy+6||x+w>ix+iw-6||y+h>iy+ih-6) return false; for(const o of obs){ if(o.floor) continue; if(o.s==='r'&&x-14<o.x+o.w&&x+w+14>o.x&&y-14<o.y+o.h&&y+h+14>o.y) return false; if(o.s==='c'&&o.x>x-24&&o.x<x+w+24&&o.y>y-24&&o.y<y+h+24) return false; } return true; };
+  if(cols===2){ const x=ix+cw-t/2; for(let r=0;r<rows;r++){ const y0=iy+r*rh; const g=y0+srnd(rh-door-30,15); wall(x,y0,t,g-y0); wall(x,g+door,t,y0+rh-(g+door)); clear(x,g,t,door); } }
+  if(rows===2){ const y=iy+rh-t/2; for(let c=0;c<cols;c++){ const x0=ix+c*cw; const g=x0+srnd(cw-door-30,15); wall(x0,y,g-x0,t); wall(g+door,y,x0+cw-(g+door),t); clear(g,y,door,t); } }
+  const fit=(x,y,w,h)=>{ if(x<ix+6||y<iy+6||x+w>ix+iw-6||y+h>iy+ih-6) return false; for(const k of keep){ if(x<k.x+k.w&&x+w>k.x&&y<k.y+k.h&&y+h>k.y) return false; } for(const o of obs){ if(o.floor) continue; if(o.s==='r'&&x-14<o.x+o.w&&x+w+14>o.x&&y-14<o.y+o.h&&y+h+14>o.y) return false; if(o.s==='c'&&o.x>x-24&&o.x<x+w+24&&o.y>y-24&&o.y<y+h+24) return false; } return true; };
   const put=(x,y,w,h,kind,extra)=>{ if(!fit(x,y,w,h)) return null; return addRect(x,y,w,h,kind,extra)||true; };
   const rug=(x,y,w,h,col)=>addRect(x,y,w,h,'floor',{sight:false,solid:false,bullet:false,floor:true,rug:col});
   const types=cols*rows===1 ? ['studio'] : ['living','bed','kitchen','bath'].sort(()=>srand()-.5).slice(0,cols*rows);
@@ -839,7 +840,7 @@ function building(bx,by,bw,bh,mat){
 function overlaps(x,y,r){
   for(const o of obs){
     if(o.floor) continue;
-    if(o.s==='r'){ if(x+r>o.x-20&&x-r<o.x+o.w+20&&y+r>o.y-20&&y-r<o.y+o.h+20) return true; }
+    if(o.s==='r'){ const m=o.kind==='door'?110:20; if(x+r>o.x-m&&x-r<o.x+o.w+m&&y+r>o.y-m&&y-r<o.y+o.h+m) return true; }
     else if(dist2(x,y,o.x,o.y) < (r+o.r+16)**2) return true;
   }
   return false;
@@ -951,7 +952,7 @@ function bank(bx,by){ const bw=560, bh=400, t=18, door=100;
   addRect(bx,by,bw,bh,'floor',{sight:false,solid:false,bullet:false,floor:true,bank:true});
   addRect(vx,vy,vw,vh,'floor',{sight:false,solid:false,bullet:false,floor:true,vault:true});
   const sx=vx+vw*.45, sy=vy+vh*.5; addCirc(sx,sy,30,'safe');
-  for(let i=0;i<3;i++){ const x=bx+t+240+srnd(260,20), y=by+t+srnd(bh-t*2-60,20); addRect(x,y,40,40,'crate'); }
+  for(let i=0,tries=0;i<3&&tries<30;tries++){ const x=bx+t+240+srnd(220,20), y=by+t+srnd(bh-t*2-60,20); if(x>bx+bw-170 && Math.abs(y+20-(by+bh*.5))<110) continue; addRect(x,y,40,40,'crate'); i++; }
   Object.assign(BANK,{x:bx+bw/2,y:by+bh/2,sx,sy,open:false,crackBy:null,crackEnd:0,alarmAt:0,has:true});
   lampAt(bx+bw+40,by+bh/2); lampAt(bx+bw/2,by-40);
 }
