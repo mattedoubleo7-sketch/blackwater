@@ -405,7 +405,7 @@
         <div class="row"><span class="lbl">GRAPHICS</span>
           <div class="opts" id="gfxOpts"><b data-gfx="low">LOW</b><b data-gfx="medium">MEDIUM</b><b data-gfx="high" class="sel">HIGH</b><b data-gfxt="reflect" class="sel">REFLECTIONS</b><b data-gfxt="mblur" class="sel">MOTION BLUR</b></div></div>
         <div class="row"><span class="lbl">TIME</span>
-          <div class="opts" id="timeOpts"><b data-time="day" class="sel">DAY</b><b data-time="night">NIGHT</b></div></div>
+          <div class="opts" id="timeOpts"><b data-time="night" class="sel">NIGHT</b><b data-time="day">DAY</b></div></div>
         <button id="btnStart">DROP IN</button>
       </footer>
     </div>
@@ -453,7 +453,7 @@ const mctx = mini.getContext('2d');
 
 let VW=0, VH=0, DPR=1, VWw=0, VHw=0, ZOOM=1, touchMode=false;
 // graphics: LOW keeps a weak machine at 60; HIGH is the full look
-const GFX={level:'high',reflect:true,mblur:true,time:'day'};
+const GFX={level:'high',reflect:true,mblur:true,time:'night'};
 try{ Object.assign(GFX,JSON.parse(localStorage.getItem('bw.gfx')||'{}')); }catch(e){}
 const gfxLow=()=>GFX.level==='low', gfxHigh=()=>GFX.level==='high', isDay=()=>GFX.time!=='night';
 function saveGfx(){ try{ localStorage.setItem('bw.gfx',JSON.stringify(GFX)); }catch(e){} }
@@ -1004,14 +1004,137 @@ function building(bx,by,bw,bh,mat,opts){ opts=opts||{};
     if(up) for(let i=0;i<srint(2,4);i++) spawnLoot(bx+srnd(bw-70,40), by+srnd(bh-70,40)+Z, lootRoll(.75)); }
   return {up,Z};
 }
-/* a house: the building, and often a wing off one side making an L — the two share a wall with an open doorway */
+/* HOUSES — hand-designed layouts, the way surviv does buildings: every room, door, window and piece of furniture
+   is placed by design, so nothing ever sits in a doorway and the stairs live in their own alcove off the hall.
+   Coordinates are template-local; a template is stamped at (bx,by) on layer 0 and, if it has one, its upstairs on layer 7.
+   walls: [x,y,w,h] runs · doors: [x,y,w,h] cut out of any wall they overlap · windows: [x,y,w,h,inside]
+   floors: [x,y,w,h,{flags}] · furn: ['kind',x,y,w,h,extra] or ['circ','kind',x,y,r,extra] · decor: ['kind',x,y,extra]
+   lamps: [x,y,kind,r] · stairs: [x,y,dx,dy] · loot: [x,y] */
+const HT=16, HD=90;
+const HOUSE_T={
+  /* 4 rooms round a cross of walls: living · kitchen / bedroom · bath. Front door west, back door east. */
+  bungalow:{ w:560, h:420, wood:true,
+    walls:[[270,16,16,388],[16,210,528,16]],
+    doors:[[0,90,16,90],[270,50,16,90],[60,210,90,16],[420,210,90,16],[544,110,16,90]],
+    windows:[[80,0,60,16,1],[380,0,60,16,1],[80,404,60,16,-1],[400,404,60,16,-1],[0,300,16,60,1],[544,300,16,60,-1]],
+    floors:[[16,16,254,194,{plank:true,col:'#5a4330'}],[286,16,258,194,{checker:true}],[16,226,254,178,{plank:true,col:'#5a4330'}],[286,226,258,178,{tile:true}]],
+    furn:[['locker',26,26,44,50,{book:true}],['sofa',90,26,130,40],['table',120,96,60,36],
+          ['counter',300,26,180,34,{kitchen:true}],['locker',490,26,44,60,{fridge:true}],['table',300,140,70,44],['circ','chair',395,162,9],
+          ['bed',26,324,110,70],['table',142,350,34,34,{night:true}],['locker',220,236,44,90],
+          ['tub',300,340,110,54],['circ','toilet',520,380,11,{flip:true}],['counter',500,240,44,28,{sink:true}]],
+    decor:[['mat',40,135,{w:26,h:50,col:'#4a2a22'}],['plant',250,30],['picture',155,18,{w:30,h:22,col:'#5a7a9a'}],['picture',420,18,{w:30,h:22,col:'#9a6a4a'}],['bottle',330,44,{n:3,c:3}],['mat',105,240,{w:44,h:20,col:'#4a2a22'}],['mat',465,240,{w:44,h:20,col:'#3a6a6a'}],['towel',470,300,{col:'#cfe6f2'}],['mat',525,155,{w:26,h:50,col:'#4a2a22'}]],
+    lamps:[[143,110,'lamp',230],[415,110,'lamp',220],[143,315,'lamp',210],[415,315,'bulb',180]],
+    stairs:null, loot:[[230,180],[400,100],[200,270],[460,260]] },
+
+  /* two storeys: a wide hall front-to-back, living + kitchen on the left, dining · stair alcove · bath on the right */
+  twoUp:{ w:620, h:500, wood:false,
+    walls:[[240,16,16,468],[366,16,16,468],[16,250,224,16],[382,200,222,16],[382,300,222,16]],
+    doors:[[266,484,90,16],[266,0,90,16],[240,100,16,90],[240,340,16,90],[366,60,16,90],[366,216,16,84,'gap'],[366,360,16,90]],
+    windows:[[80,0,60,16,1],[450,0,60,16,1],[80,484,60,16,-1],[450,484,60,16,-1],[0,140,16,60,1],[0,380,16,60,1],[604,90,16,60,-1],[604,400,16,60,-1]],
+    floors:[[256,16,110,468,{plank:true,col:'#3a3028'}],[16,16,224,234,{plank:true,col:'#5a4330'}],[16,266,224,218,{checker:true}],[382,16,222,184,{plank:true,col:'#5a4330'}],[382,216,222,84,{plank:true,col:'#3a3028'}],[382,316,222,168,{tile:true}]],
+    furn:[['sofa',26,60,44,130],['table',90,100,50,50],['counter',150,26,80,30,{tv:true}],
+          ['counter',26,440,160,34,{kitchen:true}],['locker',190,430,44,44,{fridge:true}],['table',60,300,80,50],['circ','chair',40,325,9],['circ','chair',150,325,9],
+          ['table',460,70,110,60],['circ','chair',490,55,9],['circ','chair',530,55,9],['circ','chair',490,145,9],['circ','chair',530,145,9],
+          ['tub',540,330,54,110],['circ','toilet',410,460,11,{flip:true}],['counter',490,450,44,28,{sink:true}]],
+    decor:[['mat',311,464,{w:50,h:26,col:'#4a2a22'}],['mat',311,36,{w:50,h:26,col:'#4a2a22'}],['plant',276,40],['plant',346,460],['picture',128,18,{w:30,h:22,col:'#5a7a9a'}],['picture',492,18,{w:30,h:22,col:'#9a6a4a'}],['bottle',60,456,{n:3,c:3}],['mat',220,145,{w:26,h:50,col:'#4a2a22'}],['mat',220,385,{w:26,h:50,col:'#4a2a22'}],['mat',402,105,{w:26,h:50,col:'#4a2a22'}],['mat',402,405,{w:26,h:50,col:'#3a6a6a'}],['towel',500,330,{col:'#cfe6f2'}],['plant',590,180]],
+    lamps:[[128,133,'lamp',230],[128,375,'lamp',220],[493,108,'chandelier',230],[493,400,'bulb',180],[311,250,'bulb',200]],
+    stairs:[412,258,1,0], loot:[[200,220],[200,400],[420,170],[311,120],[311,320]],
+    up:{ walls:[[240,16,16,468],[366,16,16,468],[16,250,224,16],[382,200,222,16],[382,300,222,16]],
+      doors:[[240,100,16,90],[240,340,16,90],[366,60,16,90],[366,216,16,84,'gap'],[366,360,16,90]],
+      floors:[[256,16,110,468,{plank:true,col:'#3a3028'}],[16,16,224,234,{plank:true,col:'#4a3628'}],[16,266,224,218,{plank:true,col:'#4a3628'}],[382,16,222,184,{plank:true,col:'#5a4330'}],[382,216,222,84,{plank:true,col:'#3a3028'}],[382,316,222,168,{tile:true}]],
+      furn:[['bed',26,26,80,120],['table',112,26,34,34,{night:true}],['locker',26,190,44,50],
+            ['bed',26,354,80,120],['table',112,440,34,34,{night:true}],['locker',190,276,44,50],
+            ['table',470,26,110,56,{desk:true}],['circ','chair',525,100,9],['locker',560,150,34,40,{book:true}],
+            ['tub',540,330,54,110],['circ','toilet',410,460,11,{flip:true}],['counter',490,450,44,28,{sink:true}]],
+      decor:[['mat',150,140,{w:30,h:40,col:'#3a4a6a'}],['mat',150,400,{w:30,h:40,col:'#3a4a6a'}],['picture',492,18,{w:30,h:22,col:'#4a7a5a'}],['plant',276,40],['towel',500,330,{col:'#cfe6f2'}],['mat',311,36,{w:50,h:26,col:'#4a2a22'}]],
+      lamps:[[128,133,'lamp',210],[128,375,'lamp',210],[493,108,'lamp',220],[493,400,'bulb',180],[311,250,'bulb',200]],
+      loot:[[200,220],[200,400],[420,170],[311,320]] } },
+
+  /* tall two-storey townhouse: hall down the middle, living/kitchen left, stair alcove · bath · bedroom right */
+  townhouse:{ w:560, h:600, wood:true,
+    walls:[[190,16,16,568],[316,16,16,568],[16,300,174,16],[332,216,212,16],[332,384,212,16]],
+    doors:[[216,584,90,16],[216,0,90,16],[190,120,16,90],[190,400,16,90],[316,66,16,90,'gap'],[316,270,16,90],[316,440,16,90]],
+    windows:[[60,0,60,16,1],[400,0,60,16,1],[60,584,60,16,-1],[400,584,60,16,-1],[0,150,16,60,1],[0,450,16,60,1],[544,290,16,60,-1],[544,480,16,60,-1]],
+    floors:[[206,16,110,568,{plank:true,col:'#3a3028'}],[16,16,174,284,{plank:true,col:'#5a4330'}],[16,316,174,268,{checker:true}],[332,16,212,200,{plank:true,col:'#3a3028'}],[332,232,212,152,{tile:true}],[332,400,212,184,{plank:true,col:'#5a4330'}]],
+    furn:[['sofa',40,26,120,40],['table',56,100,60,40],['counter',26,200,30,80,{tv:true}],
+          ['counter',26,540,120,34,{kitchen:true}],['locker',146,530,40,44,{fridge:true}],['table',50,380,70,50],['circ','chair',60,455,9],
+          ['tub',480,246,54,110],['circ','toilet',360,360,11,{flip:true}],['counter',400,350,44,28,{sink:true}],
+          ['bed',440,470,90,110],['table',400,540,34,34,{night:true}],['locker',480,410,44,50]],
+    decor:[['mat',261,564,{w:50,h:26,col:'#4a2a22'}],['mat',261,36,{w:50,h:26,col:'#4a2a22'}],['plant',226,36],['picture',100,18,{w:30,h:22,col:'#5a7a9a'}],['bottle',60,556,{n:2,c:1}],['mat',170,165,{w:26,h:50,col:'#4a2a22'}],['mat',170,445,{w:26,h:50,col:'#4a2a22'}],['mat',352,315,{w:26,h:50,col:'#3a6a6a'}],['mat',352,485,{w:26,h:50,col:'#4a2a22'}],['towel',460,300,{col:'#cfe6f2'}],['plant',530,40]],
+    lamps:[[103,160,'lamp',230],[103,450,'lamp',220],[438,308,'bulb',170],[438,492,'lamp',210],[261,300,'bulb',200],[438,110,'bulb',180]],
+    stairs:[372,110,1,0], loot:[[150,270],[150,500],[400,330],[261,300],[380,470]],
+    up:{ walls:[[190,16,16,568],[316,16,16,568],[16,300,174,16],[332,216,212,16],[332,384,212,16]],
+      doors:[[190,120,16,90],[190,400,16,90],[316,66,16,90,'gap'],[316,270,16,90],[316,440,16,90]],
+      floors:[[206,16,110,568,{plank:true,col:'#3a3028'}],[16,16,174,284,{plank:true,col:'#4a3628'}],[16,316,174,268,{plank:true,col:'#4a3628'}],[332,16,212,200,{plank:true,col:'#3a3028'}],[332,232,212,152,{tile:true}],[332,400,212,184,{plank:true,col:'#5a4330'}]],
+      furn:[['bed',26,26,80,120],['table',112,26,34,34,{night:true}],['locker',26,240,44,50],
+            ['table',26,330,110,56,{desk:true}],['circ','chair',80,420,9],['locker',26,520,34,50,{book:true}],
+            ['tub',480,246,54,110],['circ','toilet',360,360,11,{flip:true}],['counter',400,350,44,28,{sink:true}],
+            ['bed',440,470,90,110],['table',400,540,34,34,{night:true}],['locker',480,410,44,50]],
+      decor:[['mat',150,140,{w:30,h:40,col:'#3a4a6a'}],['plant',226,36],['picture',100,18,{w:30,h:22,col:'#9a6a4a'}],['towel',460,300,{col:'#cfe6f2'}],['mat',261,36,{w:50,h:26,col:'#4a2a22'}]],
+      lamps:[[103,160,'lamp',210],[103,450,'lamp',210],[438,308,'bulb',170],[438,492,'lamp',210],[261,300,'bulb',200],[438,110,'bulb',180]],
+      loot:[[150,270],[150,500],[400,330],[380,470]] } },
+
+  /* garage on the west with a roll-up door, living room across the top, kitchen + bath below */
+  garageHouse:{ w:640, h:440, wood:false,
+    walls:[[250,16,16,408],[266,220,358,16],[470,236,16,188]],
+    doors:[[400,0,90,16],[0,160,16,150,'garage'],[250,80,16,90],[320,220,90,16],[500,220,90,16],[320,424,90,16]],
+    windows:[[300,0,60,16,1],[540,0,60,16,1],[480,424,60,16,-1],[80,424,60,16,-1],[624,80,16,60,-1],[624,340,16,60,-1]],
+    floors:[[16,16,234,408,{}],[266,16,358,204,{plank:true,col:'#5a4330'}],[266,236,204,188,{checker:true}],[486,236,138,188,{tile:true}]],
+    furn:[['car',90,40,70,150],['shelf',160,26,70,26],['shelf',220,300,30,100],['crate',40,360,40,40],
+          ['sofa',280,26,110,40],['table',340,110,60,40],['counter',420,180,70,30,{tv:true}],['locker',570,30,44,90],
+          ['counter',276,246,34,120,{kitchen:true}],['locker',276,376,44,40,{fridge:true}],['table',426,290,44,60],
+          ['tub',500,360,110,54],['circ','toilet',600,260,11,{flip:true}],['counter',570,300,44,28,{sink:true}]],
+    decor:[['tape',125,115,{w:90,h:180}],['spill',150,300,{r:12,col:'rgba(5,5,8,.5)'}],['cable',30,320,{dx:80,dy:-10}],['mat',445,36,{w:50,h:26,col:'#4a2a22'}],['plant',600,190],['picture',470,18,{w:30,h:22,col:'#5a7a9a'}],['bottle',290,260,{n:3,c:3}],['mat',365,250,{w:44,h:20,col:'#4a2a22'}],['mat',545,250,{w:44,h:20,col:'#3a6a6a'}],['towel',520,330,{col:'#cfe6f2'}],['mat',365,404,{w:44,h:20,col:'#4a2a22'}]],
+    lamps:[[133,220,'bulb',240],[445,118,'lamp',240],[368,330,'lamp',210],[555,300,'bulb',170]],
+    props:[['wcrate',140,370,50,40]],
+    stairs:null, loot:[[170,280],[520,120],[380,340],[540,320]] },
+
+  /* one-room cabin */
+  cabin:{ w:360, h:300, wood:true,
+    walls:[], doors:[[135,284,90,16]],
+    windows:[[60,0,60,16,1],[230,0,60,16,1],[0,180,16,60,1],[344,100,16,60,-1]],
+    floors:[[16,16,328,268,{plank:true,col:'#4a3628'}]],
+    furn:[['bed',26,26,80,110],['table',112,26,34,34,{night:true}],['counter',200,26,130,34,{kitchen:true}],['table',150,150,70,50],['circ','chair',140,175,9],['circ','chair',240,175,9],['locker',300,200,44,70,{book:true}]],
+    decor:[['mat',180,264,{w:50,h:26,col:'#4a2a22'}],['picture',180,18,{w:30,h:22,col:'#9a6a4a'}],['plant',60,260],['bottle',250,44,{n:2,c:1}]],
+    lamps:[[180,130,'lamp',230]],
+    stairs:null, loot:[[280,120],[60,240]] },
+};
+/* stamp a template at bx,by */
+const HOUSES=[];   // stamped houses, for tests and the minimap
+function houseT(bx,by,T){ const t=HT; HOUSES.push({x:bx,y:by,w:T.w,h:T.h,tpl:Object.keys(HOUSE_T).find(k=>HOUSE_T[k]===T)}); const wood=T.wood; const kindW=wood?'wwall':'wall';
+  const layer=(L,z,isUp)=>{
+    const shell=[[0,0,T.w,t],[0,T.h-t,T.w,t],[0,0,t,T.h],[T.w-t,0,t,T.h]];
+    const cuts=[...L.doors.map(d=>({x:d[0],y:d[1],w:d[2],h:d[3]})),...(T.windows||[]).map(w=>({x:w[0],y:w[1],w:w[2],h:w[3]}))];
+    // walls minus doors and windows: split each run where a cut overlaps it
+    const runs=[...shell,...L.walls];
+    for(const [x,y,w,h] of runs){ const horiz=w>=h; let pieces=[[horiz?x:y,horiz?x+w:y+h]];
+      for(const c of cuts){ const ov=horiz?(c.y<y+h&&c.y+c.h>y):(c.x<x+w&&c.x+c.w>x); if(!ov) continue; const a=horiz?c.x:c.y, b=horiz?c.x+c.w:c.y+c.h; const np=[]; for(const [p0,p1] of pieces){ if(b<=p0||a>=p1){ np.push([p0,p1]); continue; } if(a>p0) np.push([p0,a]); if(b<p1) np.push([b,p1]); } pieces=np; }
+      for(const [p0,p1] of pieces){ if(p1-p0<2) continue; if(horiz) addRect(bx+p0,by+y+z,p1-p0,h,kindW,wood?{hp:1}:undefined); else addRect(bx+x,by+p0+z,w,p1-p0,kindW,wood?{hp:1}:undefined); } }
+    for(const d of L.doors){ if(d[4]==='gap') continue; const dr=addDoor(bx+d[0],by+d[1]+z,d[2],d[3]); if(d[4]==='garage') dr.garage=true; }
+    for(const w of (T.windows||[])){ const wn=win(bx+w[0],by+w[1]+z,w[2],w[3]); wn.curtain=T.curtain; wn.inside=w[4]; const horiz=w[2]>=w[3]; dec('wlight',bx+w[0]+w[2]/2+(horiz?0:w[4]*t/2),by+w[1]+z+w[3]/2+(horiz?w[4]*t/2:0),{horiz,inn:w[4],w:horiz?w[2]:w[3]}); }
+    addRect(bx,by+z,T.w,T.h,'floor',{sight:false,solid:false,bullet:false,floor:true,bldg:!isUp,up:isUp,wood});
+    for(const f of L.floors) addRect(bx+f[0],by+f[1]+z,f[2],f[3],'floor',Object.assign({sight:false,solid:false,bullet:false,floor:true},f[4]||{}));
+    for(const f of L.furn){ if(f[0]==='circ') addCirc(bx+f[2],by+f[3]+z,f[4],f[1],f[5]); else if(f[0]==='car') car(bx+f[1],by+f[2]+z,f[3],f[4]); else addRect(bx+f[1],by+f[2]+z,f[3],f[4],f[0],f[5]); }
+    for(const d of (L.decor||[])) dec(d[0],bx+d[1],by+d[2]+z,d[3]);
+    for(const l of L.lamps) lamps.push({x:bx+l[0],y:by+l[1]+z,kind:l[2],r:l[3],ph:srnd(TAU),indoor:l[2]!=='chandelier'});
+    for(const p of (L.props||[])) addProp(bx+p[1],by+p[2]+z,p[3],p[4],p[0]);
+    if(MODE!=='kit') for(const q of L.loot) spawnLoot(bx+q[0],by+q[1]+z,lootRoll(isUp?.75:.55)); };
+  T.curtain=spick(['#7a2a2a','#2a4a6a','#6a5a2a','#4a2a5a','#3a5a3a']);
+  layer(T,0,false);
+  // porch + light outside the front door (the first door on the shell)
+  for(const d of T.doors){ if(d[4]==='garage') continue; const onN=d[1]===0, onS=d[1]===T.h-t, onW=d[0]===0, onE=d[0]===T.w-t; if(!(onN||onS||onW||onE)) continue;
+    const horiz=d[2]>=d[3]; const px=onW?bx-70:onE?bx+T.w:bx+d[0]-20, py=onN?by-70:onS?by+T.h:by+d[1]-20, pw=horiz?d[2]+40:70, ph=horiz?70:d[3]+40;
+    addRect(px,py,pw,ph,'floor',{sight:false,solid:false,bullet:false,floor:true,porch:true}); lamps.push({x:px+pw/2,y:py+ph/2,kind:'bulb',r:170,ph:srnd(TAU)}); dec('plant',horiz?px+12:px+pw/2,horiz?py+ph/2:py+12,{ph:srnd(TAU)}); break; }
+  if(T.up&&UG){ layer(T.up,7*UG,true); const s=T.stairs; hatches.push({x:bx+s[0],y:by+s[1],a:0,b:7,kind:'stairs',dx:s[2],dy:s[3],tpl:Object.keys(HOUSE_T).find(k=>HOUSE_T[k]===T)}); }
+}
+/* plots are sized to a design: weighted pick, the big two-storey ones most often */
+function pickHouseT(){ const r=srand(); return HOUSE_T[r<.25?"twoUp":r<.45?"townhouse":r<.65?"bungalow":r<.82?"garageHouse":"cabin"]; }
+/* pick the biggest design that fits the plot, and centre it */
 function house(bx,by,bw,bh){
-  if(bw<440||bh<300||srand()<.4){ building(bx,by,bw,bh); return; }
-  const east=srand()<.5||bh<380; const mw=east?Math.round(bw*.62):bw, mh=east?bh:Math.round(bh*.62);
-  if(east){ const wh=Math.round(bh*srnd(.8,.55)), wy=srand()<.5?by:by+bh-wh, ww=bw-mw; const at=wy-by+wh/2-45;
-    building(bx,by,mw,mh,null,{gaps:[{side:1,at,len:90}],avoidSide:1}); building(bx+mw,wy,ww,wh,null,{noFront:true,noUp:true,noHall:true,gaps:[{side:3,at:wh/2-45,len:90}],avoidSide:3}); }
-  else { const ww=Math.round(bw*srnd(.8,.55)), wx=srand()<.5?bx:bx+bw-ww, wh=bh-mh; const at=wx-bx+ww/2-45;
-    building(bx,by,mw,mh,null,{gaps:[{side:2,at,len:90}],avoidSide:2}); building(wx,by+mh,ww,wh,null,{noFront:true,noUp:true,noHall:true,gaps:[{side:0,at:ww/2-45,len:90}],avoidSide:0}); }
+  const fits=Object.values(HOUSE_T).filter(T=>T.w<=bw&&T.h<=bh);
+  if(!fits.length){ building(bx,by,bw,bh); return; }
+  fits.sort((a,b)=>b.w*b.h-a.w*a.h); const T=fits[0].w===bw&&fits[0].h===bh?fits[0]:srand()<.6?fits[0]:spick(fits);
+  houseT(Math.round(bx+(bw-T.w)/2),Math.round(by+(bh-T.h)/2),T);
 }
 
 function overlaps(x,y,r){
@@ -1463,7 +1586,7 @@ function genStrip(G){ const {free,N,sc}=G;
   const placed=[];
   const nBuild = MODE==='kit' ? 6 : N(13);
   while(placed.length<nBuild && tries++<400){
-    const bw=srnd(640,300), bh=srnd(580,280);
+    const {w:bw,h:bh}=pickHouseT();
     const bx=srnd(MAP-bw-150,150), by=srnd(MAP-bh-150,150);
     if(placed.some(p=>bx<p.x+p.w+150&&bx+bw>p.x-150&&by<p.y+p.h+150&&by+bh>p.y-150)) continue;
     placed.push({x:bx,y:by,w:bw,h:bh}); house(bx,by,bw,bh);
@@ -1490,7 +1613,7 @@ function genHollow(G){ const {free,N}=G;
   // the church on the crossroads, then houses strung along every road
   { const cx=M/2+RW/2+120, cy=M/2-RW/2-620; placed.push({x:cx,y:cy,w:420,h:560}); church(cx,cy); }
   for(const r of roads){ const vert=r.h>r.w;
-    for(let t=200;t<(vert?r.h:r.w)-300;t+=srnd(720,520)){ for(const side of [-1,1]){ if(srand()<.25) continue; const bw=srnd(580,300), bh=srnd(540,280);
+    for(let t=200;t<(vert?r.h:r.w)-300;t+=srnd(720,520)){ for(const side of [-1,1]){ if(srand()<.25) continue; const {w:bw,h:bh}=pickHouseT();
       const bx=vert?(side<0?r.x-90-bw:r.x+r.w+90):r.x+t, by=vert?r.y+t:(side<0?r.y-90-bh:r.y+r.h+90);
       if(put(bx,by,bw,bh) && srand()<.5){ // a yard with a fence and a gap
         const fx=bx-70,fy=by-70,fw=bw+140,fh=bh+140, gap=srnd(.7,.2);
@@ -1520,7 +1643,7 @@ function genSuburbs(G){ const {free,N}=G; const M=MAP, RW=140, n=4, cell=M/n;
   const blocks=[]; for(let i=0;i<n;i++) for(let j=0;j<n;j++) blocks.push([i,j]); sshuffle(blocks);
   let k=0; for(const [i,j] of blocks){ if(k>=civic.length) break; const [fn,w,h]=civic[k]; const bx=i*cell+RW/2+srnd(cell-RW-w-120,60), by=j*cell+RW/2+srnd(cell-RW-h-120,60); if(put(bx,by,w,h,(x,y)=>fn(x,y))) k++; }
   // houses fill the rest, two or three to a block, with yards
-  for(const [i,j] of blocks){ for(let tries=0,got=0;tries<14&&got<3;tries++){ const bw=srnd(640,340), bh=srnd(580,320); const bx=i*cell+RW/2+srnd(cell-RW-bw-100,50), by=j*cell+RW/2+srnd(cell-RW-bh-100,50);
+  for(const [i,j] of blocks){ for(let tries=0,got=0;tries<14&&got<3;tries++){ const {w:bw,h:bh}=pickHouseT(); const bx=i*cell+RW/2+srnd(cell-RW-bw-100,50), by=j*cell+RW/2+srnd(cell-RW-bh-100,50);
       if(put(bx,by,bw,bh)){ got++; if(srand()<.6){ const fx=bx-60,fy=by-60,fw=bw+120,fh=bh+120, gap=srnd(.7,.2); fence(fx,fy,fw*gap-50,10); fence(fx+fw*gap+50,fy,fw-fw*gap-50,10); fence(fx,fy+fh-10,fw,10); fence(fx,fy,10,fh); fence(fx+fw-10,fy,10,fh); } } } }
   // a park in the middle block: trees, a pond, benches
   { const cx=M/2, cy=M/2; water(cx-260,cy-160,520,320); for(let i=0;i<N(18);i++){ const a=srnd(TAU), r=srnd(600,340); const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r; if(free(x,y,40)&&!onRoad(x-40,y-40,80,80)) addCirc(x,y,srnd(40,26),'tree'); } for(let i=0;i<4;i++){ const a=i/4*TAU+.4; addRect(cx+Math.cos(a)*400-40,cy+Math.sin(a)*400-10,80,20,'sofa'); } lampAt(cx-300,cy-200); lampAt(cx+300,cy+200); }
@@ -1625,7 +1748,7 @@ function genWorld(){
   const free=(x,y,r)=>!overlaps(x,y,r);
   const N=n=>Math.round(n*sc);
   const G={free,N,sc};
-  BANK.has=false; holes.length=0; UG=MODE==='kit'?0:MAP+600; hatches=[]; props=[]; RADAR.until=0;
+  BANK.has=false; holes.length=0; UG=MODE==='kit'?0:MAP+600; hatches=[]; HOUSES.length=0; props=[]; RADAR.until=0;
   const gen = MODE==='kit' ? genStrip : ({strip:genStrip,hollow:genHollow,docks:genDocks,bunker:genBunker,depot:genDepot,suburbs:genSuburbs,airfield:genAirfield})[MAPID]||genStrip;
   gen(G);
   CLUB.has=false;
@@ -2275,7 +2398,8 @@ function rollVaultArmor(){ const r=srand(); return r<.30?5:r<.55?6:r<.75?7:r<.89
 const STAIR_LEN=110, STAIR_HW=30;
 function stairwells(){
   for(const h of hatches){ if(h.kind!=='stairs') continue;
-    let best=null;
+    let best=h.dx!=null?{dx:h.dx,dy:h.dy,score:0}:null;   // designed stairs keep their direction
+    if(!best)
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ let score=0;
       for(const l of [h.a,h.b]){ const q=stairPos(h,l); const ex=q.x+dx*(STAIR_LEN+44), ey=q.y+dy*(STAIR_LEN+44), sx=q.x-dx*24, sy=q.y-dy*24;
         const x0=Math.min(sx,ex)-(dy?STAIR_HW+6:0), x1=Math.max(sx,ex)+(dy?STAIR_HW+6:0), y0=Math.min(sy,ey)-(dx?STAIR_HW+6:0), y1=Math.max(sy,ey)+(dx?STAIR_HW+6:0);
