@@ -1118,118 +1118,139 @@ function carveFor(bx,by,bw,bh){
   for(let i=hatches.length-1;i>=0;i--){ const h=hatches[i]; if(h.a===0&&h.b===7&&inR(h.x,h.y,0)) hatches.splice(i,1); } }
 // trees, bushes, rocks and crates are cheap to clear: a footprint only needs to dodge the built things
 function softClear(bx,by,bw,bh){ for(let i=obs.length-1;i>=0;i--){ const o=obs[i]; if(o.s==='c'){ if((o.kind==='tree'||o.kind==='bush'||o.kind==='rock')&&o.x>bx-40&&o.x<bx+bw+40&&o.y>by-40&&o.y<by+bh+40) obs.splice(i,1); } else if(o.kind==='crate'&&o.x<bx+bw+20&&o.x+o.w>bx-20&&o.y<by+bh+20&&o.y+o.h>by-20) obs.splice(i,1); } }
-/* THE CLUB. Ground floor is a building on the surface; the upstairs and the roof are the same footprint on
-   layers 2, 3, 5 and 6, reached by stairs. Neon, a dance floor that cycles, booths, a bar, a DJ riser, restrooms with
-   stalls, a breaker box that kills the lights, a casino, the owner's penthouse and a roof terrace. */
-const CLUB_W=760, CLUB_H=560;
-function club(bx,by){ const bw=CLUB_W, bh=CLUB_H, t=18, door=110;
-  const wall=(x,y,w,h,l,extra)=>addRect(bx+x,by+y+(l||0)*UG,w,h,'wall',Object.assign({gold:true},extra||{}));
-  const flo=(x,y,w,h,l,extra)=>addRect(bx+x,by+y+(l||0)*UG,w,h,'floor',Object.assign({sight:false,solid:false,bullet:false,floor:true,club:true},extra||{}));
-  const rope=(x,y,w,h,l)=>addRect(bx+x,by+y+(l||0)*UG,w,h,'rope');
-  const R=(x,y,w,h,kind,l,extra)=>addRect(bx+x,by+y+(l||0)*UG,w,h,kind,extra);
-  const C=(x,y,r,kind,l,extra)=>addCirc(bx+x,by+y+(l||0)*UG,r,kind,extra);
-  const D=(x,y,w,h,l)=>addDoor(bx+x,by+y+(l||0)*UG,w,h);
-  const lamp=(x,y,kind,r,l,extra)=>lamps.push(Object.assign({x:bx+x,y:by+y+(l||0)*UG,kind,r,ph:srnd(TAU),grp:'club'},extra||{}));
-  const prop=(x,y,w,h,kind,l)=>addProp(bx+x,by+y+(l||0)*UG,w,h,kind);
+/* THE CLUB — 1200×900 a floor, five floors stacked on layers 0 (ground), 2 (lounge), 5 (casino), 6 (the owner's) and
+   3 (roof). Every floor is a set of rooms off a hallway; every floor has restrooms; the roof has the pool. */
+const CLUB_W=1200, CLUB_H=900;
+function club(bx,by){ const bw=CLUB_W, bh=CLUB_H, t=18;
+  const W=(x,y,w,h,l,e)=>addRect(bx+x,by+y+l*UG,w,h,'wall',Object.assign({gold:true},e||{}));
+  const F=(x,y,w,h,l,e)=>addRect(bx+x,by+y+l*UG,w,h,'floor',Object.assign({sight:false,solid:false,bullet:false,floor:true,club:true},e||{}));
+  const R=(x,y,w,h,kind,l,e)=>addRect(bx+x,by+y+l*UG,w,h,kind,e);
+  const C=(x,y,r,kind,l,e)=>addCirc(bx+x,by+y+l*UG,r,kind,e);
+  const D=(x,y,w,h,l)=>addDoor(bx+x,by+y+l*UG,w,h);
+  const lamp=(x,y,kind,r,l,e)=>lamps.push(Object.assign({x:bx+x,y:by+y+l*UG,kind,r,ph:srnd(TAU),grp:'club'},e||{}));
+  const prop=(x,y,w,h,kind,l)=>addProp(bx+x,by+y+l*UG,w,h,kind);
+  const rope=(x,y,w,h,l)=>addRect(bx+x,by+y+l*UG,w,h,'rope');
+  const dc=(kind,x,y,l,e)=>dec(kind,bx+x,by+y+l*UG,e);
+  const loot=(x,y,l,it)=>{ if(MODE!=='kit') spawnLoot(bx+x,by+y+l*UG,it||lootRoll(.8)); };
   const royal={royal:true};
-  // a restroom: tiled room in a corner, two stalls with doors, toilets, urinals or a vanity, a dryer. Opens on the given side.
-  const restroom=(x,y,w,h,l,doorSide,women)=>{ flo(x,y,w,h,l,{tile:true});
-    const top=doorSide==='S', westRoom=x<CLUB_W/2, dAt=westRoom?x+60:x+w-t-90;   // door in the south wall for rooms in a top corner
-    const wy=top?y+h-t:y; wall(x,wy,dAt-x,t,l); D(dAt,wy,70,t,l); wall(dAt+70,wy,x+w-(dAt+70),t,l);
-    if(westRoom) wall(x+w-t,y,t,h,l); else wall(x,y,t,h,l);
-    const fy=top?y+t:y+h-t, dir=top?1:-1;                                         // the wall the stalls back onto
-    const nst=w>=230?3:2, pitch=nst===3?64:68;   // the big ground-floor rooms take three stalls
-    for(let i=0;i<nst;i++){ const sx=x+t+i*pitch; if(i<nst-1||nst===2) wall(sx+60,top?fy:fy-80,8,80,l,{tile:true}); C(sx+30,fy+dir*18,10,'toilet',l,{flip:!top}); D(sx,top?fy+76:fy-84,60,8,l); dec('poster',sx+30,top?fy+40:fy-40,{w:12,h:16,col:['#3fbfff','#ff60a0','#e0b44a'][i]}); }
-    if(nst===3){ R(x+t+2,top?y+h-t-28:y+t,44,28,'counter',l,{sink:true}); R(x+t+50,top?y+h-t-24:y+t+4,14,20,'dryer',l); if(!women){ R(x+w-t-14,top?y+t+96:y+h-t-108,12,14,'urinal',l); R(x+w-t-14,top?y+t+114:y+h-t-126,12,14,'urinal',l); } }
-    else { if(westRoom){ if(women) R(x+t+140,top?fy:fy-60,54,60,'counter',l,{sink:true}); else { R(x+t+142,top?fy:fy-12,16,12,'urinal',l); R(x+t+166,top?fy:fy-12,16,12,'urinal',l); R(x+t+134,top?y+h-t-28:y+t,44,28,'counter',l,{sink:true}); } }
-      else R(x+t+2,top?y+h-t-28:y+t,40,28,'counter',l,{sink:true});
-      R(westRoom?x+w-t-14:x+w-14,top?y+t+90:y+h-t-110,14,20,'dryer',l); }
-    lamp(x+w/2,y+h/2,'bulb',170,l,{indoor:true}); };
-  for(const l of [0,2,3,5,6]){ // shell
-    wall(0,0,bw,t,l); wall(0,bh-t,bw,t,l); wall(bw-t,0,t,bh,l);
-    if(l===0){ wall(0,0,t,bh*.5-door/2,l); wall(0,bh*.5+door/2,t,bh*.5-door/2,l); D(0,bh*.5-door/2,t,door,0); } else wall(0,0,t,bh,l);
-    flo(0,0,bw,bh,l,{clubLv:l,bldg:l===0,casino:l===5,priv2:l===6});
-  }
-  /* GROUND: red carpet from the door between velvet ropes, the gold-edged dance floor ringed with ropes (gaps on every
-     side), the long bar, crimson booths, the DJ riser, two restrooms, vending machines and the breaker box */
-  flo(t,240,152,80,0,{carpet:true}); rope(38,228,130,8,0); rope(38,324,130,8,0);
-  for(const [px,py] of [[236,150],[564,150],[236,410],[564,410]]) C(px,py,14,'pillar',0);   // the open floor between the bar and the stage
-  // THE BAR: dark-wood bar floor, a back bar of bottles under a neon sign, the counter with its brass rail, stools, pendant lights
-  flo(240,t,320,124,0,{bar:true}); R(250,22,300,18,'shelf',0,{bar:true}); R(250,66,300,34,'counter',0,royal); dec('rail',bx+252,by+104,{dx:296,dy:0});
-  for(let i=0;i<5;i++) C(270+i*70,124,10,'stool',0); for(let i=0;i<3;i++) lamp(300+i*100,52,'lamp',130,0,{indoor:true});
-  dec('neon',bx+400,by+46,{text:'BLACKWATER',col:'#ff3060',size:15}); dec('bottle',bx+280,by+78,{n:2,c:2}); dec('bottle',bx+500,by+80,{n:3,c:4}); dec('spill',bx+330,by+140,{r:12,ph:.5}); dec('spill',bx+470,by+150,{r:9,ph:2});
-  dec('neon',bx+113,by+164,{text:'WC',col:'#3fbfff',size:12}); dec('neon',bx+113,by+396,{text:'WC',col:'#ff60a0',size:12}); dec('neon',bx+690,by+470,{text:'VIP ▲',col:'#e0b44a',size:12});
-  for(const [px,py] of [[600,150],[600,420],[236,440]]) dec('plant',bx+px,by+py,{ph:srnd(TAU)});
-  for(let i=0;i<3;i++) dec('poster',bx+bw-t-12,by+90+i*125,{col:['#c8352c','#e0b44a','#3fbfff'][i]});
-  dec('bottle',bx+590,by+300,{n:2,c:0}); dec('bottle',bx+660,by+470,{n:1,c:5});
-  for(let i=0;i<3;i++){ R(bw-140,60+i*125,100,50,'sofa',0,royal); R(bw-130,116+i*125,80,28,'table',0,royal); }
-  R(250,476,300,46,'stage',0); R(350,482,100,32,'table',0,{dj:true}); R(216,470,26,52,'locker',0,{speaker:true}); R(558,470,26,52,'locker',0,{speaker:true});
-  dec('cable',bx+242,by+520,{dx:110,dy:-6}); dec('cable',bx+450,by+514,{dx:108,dy:6}); dec('neon',bx+400,by+466,{text:'DJ',col:'#3fbf6a',size:12});
-  restroom(t,t,232,150,0,'S',false); restroom(t,bh-t-150,232,150,0,'N',true);
-  prop(562,20,36,30,'vend',0); prop(604,20,36,30,'vend',0); prop(584,520,30,22,'breaker',0);
-  lamp(bw/2-90,280,'chandelier',300,0); lamp(bw/2+90,280,'chandelier',300,0);
-  for(let i=0;i<3;i++) lamp(280+i*120,240,'club',200,0); lamp(400,440,'club',200,0);
-  lamps.push({x:bx-40,y:by+bh/2,kind:'lamp',r:280,ph:0}); lamps.push({x:bx+bw/2,y:by-40,kind:'neon',r:300,ph:0,grp:'club'});
-  // OUTSIDE: a marquee over the door, a roped queue lane, the bouncer's spot, a smoking patio out back with heaters
-  flo(-170,bh*.5-70,170,140,0,{carpet:true}); rope(-160,bh*.5-78,150,8,0); rope(-160,bh*.5+70,150,8,0);
-  dec('neon',bx-85,by+bh*.5-100,{text:'BLACKWATER',col:'#ff3060',size:20}); dec('neon',bx-85,by+bh*.5+100,{text:'TONIGHT · OPEN LATE',col:'#e0b44a',size:10});
-  lamps.push({x:bx-85,y:by+bh*.5-100,kind:'neon',r:340,ph:2,grp:'club'}); for(const [px,py] of [[-180,bh*.5-110],[-180,bh*.5+110]]) dec('plant',bx+px,by+py,{ph:srnd(TAU)});
-  flo(bw,bh-220,200,200,0,{porch:true}); wall(bw+200,bh-220,t,200,0); wall(bw,bh-220,200,t,0);   // the patio
-  for(let i=0;i<2;i++){ R(bw+30+i*90,bh-160,50,50,'table',0,royal); C(bw+55+i*90,bh-175,9,'stool',0); C(bw+55+i*90,bh-95,9,'stool',0); }
-  for(let i=0;i<2;i++) lamps.push({x:bx+bw+50+i*100,y:by+bh-40,kind:'fire',r:220,ph:i});   // patio heaters
-  for(let k=obs.length-1;k>=0;k--){ const o=obs[k]; if(o.kind==='wall'&&o.gold&&Math.abs(o.x-(bx+bw-t))<1&&Math.abs(o.y-by)<1&&o.h===bh){ obs.splice(k,1); wall(bw-t,0,t,bh-160,0); D(bw-t,bh-160,t,70,0); wall(bw-t,bh-90,t,90,0); break; } }   // a back door onto the patio
-  dec('spill',bx+bw+120,by+bh-60,{r:10,ph:1}); dec('bottle',bx+bw+150,by+bh-190,{n:2,c:3});
-  // INSIDE: the coat check by the door, go-go platforms at the dance floor's corners, more signs
-  R(t+4,174,54,24,'counter',0); dec('neon',bx+t+32,by+166,{text:'COAT CHECK',col:'#3fbfff',size:7}); dec('poster',bx+t+70,by+186,{w:14,h:20,col:'#c8352c'});
+  // a wall run with doors cut into it. hwall: y is the wall's top edge; vwall: x is the wall's left edge.
+  const hwall=(x0,x1,y,l,doors)=>{ let cur=x0; for(const [a,len] of (doors||[]).slice().sort((p,q)=>p[0]-q[0])){ if(a>cur) W(cur,y,a-cur,t,l); D(a,y,len,t,l); cur=a+len; } if(cur<x1) W(cur,y,x1-cur,t,l); };
+  const vwall=(x,y0,y1,l,doors)=>{ let cur=y0; for(const [a,len] of (doors||[]).slice().sort((p,q)=>p[0]-q[0])){ if(a>cur) W(x,cur,t,a-cur,l); D(x,a,t,len,l); cur=a+len; } if(cur<y1) W(x,cur,t,y1-cur,l); };
+  // a restroom: stalls along the far wall, sinks by the door. x,y,w,h is the room; the door is in the wall named by 'side'.
+  const restroom=(x,y,w,h,l,side,at,women)=>{ F(x,y,w,h,l,{tile:true});
+    const top=side==='S';   // stalls back onto the wall opposite the door
+    const fy=top?y+t:y+h-t, dir=top?1:-1; const n=Math.max(2,Math.floor((w-2*t-40)/64));
+    for(let i=0;i<n;i++){ const sx=x+t+i*64; if(i<n-1) W(sx+60,top?fy:fy-80,8,80,l,{tile:true}); C(sx+30,fy+dir*18,10,'toilet',l,{flip:!top}); D(sx,top?fy+76:fy-84,60,8,l); dc('poster',sx+30,top?fy+40:fy-40,l,{w:12,h:16,col:['#3fbfff','#ff60a0','#e0b44a','#3fbf6a'][i%4]}); }
+    const sy=top?y+h-t-28:y+t; R(x+w-t-100,sy,50,28,'counter',l,{sink:true}); R(x+w-t-46,sy,40,28,'counter',l,{sink:true}); R(x+w-t-16,top?sy-30:sy+34,14,20,'dryer',l);
+    if(!women){ R(x+t+2,top?y+h-t-14:y+t,12,14,'urinal',l); R(x+t+20,top?y+h-t-14:y+t,12,14,'urinal',l); }
+    dc('neon',x+w/2,top?y+h+12:y-12,l,{text:women?'WC ♀':'WC ♂',col:women?'#ff60a0':'#3fbfff',size:11}); lamp(x+w/2,y+h/2,'bulb',180,l,{indoor:true}); };
+  const bar=(x,y,w,l,label)=>{ F(x-20,y-30,w+40,110,l,{bar:true}); R(x,y-22,w,18,'shelf',l,{bar:true}); R(x,y+16,w,34,'counter',l,royal); dc('rail',x+2,y+54,l,{dx:w-4,dy:0}); for(let i=0;i<Math.floor(w/70);i++) C(x+35+i*70,y+74,10,'stool',l); for(let i=0;i<Math.floor(w/100);i++) lamp(x+50+i*100,y,'lamp',130,l,{indoor:true}); if(label) dc('neon',x+w/2,y-4,l,{text:label,col:'#ff3060',size:14}); };
+  const booth=(x,y,l)=>{ R(x,y,100,50,'sofa',l,royal); R(x+10,y+56,80,28,'table',l,royal); };
+  const pillars=(pts,l)=>{ for(const [px,py] of pts) C(px,py,16,'pillar',l); };
 
-  dec('neon',bx+bw-90,by+230,{text:'BOOTHS',col:'#e0b44a',size:10}); dec('neon',bx+300,by+114,{text:'COCKTAILS',col:'#3fbf6a',size:9});
-  CLUB.bx=bx-85; CLUB.by=by+bh*.5+40;   // where the bouncer stands
-  stairs(bx+bw-70,by+bh-60,0,2,'stairs');
-  /* LOUNGE (2): gold rails around the well over the dance floor, velvet rooms, a bar, the security office, a VIP restroom */
-  flo(250,160,300,240,2,{well:true});
-  for(const [x,y,w,h] of [[250,160,300,10],[250,390,300,10],[250,160,10,240],[540,160,10,240]]) R(x,y,w,h,'rail',2,{gold:true});
-  for(let i=0;i<2;i++){ const rx=40, ry=220+i*130; flo(rx,ry,120,120,2,{priv:true}); wall(rx+120,ry,t,70,2); R(rx+8,ry+34,84,42,'sofa',2,royal); R(rx+30,ry+80,50,22,'table',2,royal); }
-  flo(240,470,320,72,2,{bar:true}); R(250,480,300,36,'counter',2,royal); R(250,520,300,18,'shelf',2,{bar:true}); for(let i=0;i<4;i++) C(285+i*70,460,10,'stool',2); for(let i=0;i<3;i++) lamp(300+i*100,500,'lamp',130,2,{indoor:true});
-  dec('neon',bx+400,by+2*UG+460-12,{text:'LOUNGE',col:'#e0b44a',size:14}); for(const [px,py] of [[230,190],[570,190],[230,440]]) dec('plant',bx+px,by+py+2*UG,{ph:srnd(TAU)});
-  for(let i=0;i<2;i++) dec('picture',bx+100,by+2*UG+222+i*130,{w:34,h:24,gold:true,col:['#7a1522','#2a3a5a'][i]}); dec('picture',bx+100,by+2*UG+40,{w:34,h:24,gold:true,col:'#1a1416'});
-  // security office: lockers, the CCTV desk, a weapon crate
-  flo(t,t,182,142,2,{priv:true}); wall(200,t,t,160,2); wall(t,160,60,t,2); D(78,160,70,t,2); wall(148,160,52,t,2);
-  R(30,30,44,90,'locker',2); R(110,30,80,30,'counter',2,{tv:true}); prop(140,110,50,40,'wcrate',2); lamp(110,90,'bulb',180,2,{indoor:true});
-  restroom(bw-t-160,t,160,150,2,'S',true);
-  lamp(bw/2,bh-60,'chandelier',280,2); for(let i=0;i<2;i++) lamp(100+i*560,bh-80,'club',200,2);
-  stairs(bx+70,by+bh-60,2,5,'stairs');
-  /* CASINO (5): slot rows, roulette, card tables, craps, the cashier's cage with the roof stairs behind it, a restroom */
-  for(let r=0;r<2;r++) for(let i=0;i<6;i++) R(130+i*56,70+r*150,40,34,'slot',5);
-  for(const [rx,ry] of [[560,250],[680,330]]) C(rx,ry,52,'roulette',5);
-  for(let i=0;i<3;i++){ R(80+i*130,330,90,54,'table',5,{felt:true}); for(const [cx,cy] of [[66+i*130,357],[184+i*130,357]]) C(cx,cy,9,'chair',5); }
-  R(380,330,160,64,'table',5,{felt:true}); for(const [cx,cy] of [[420,316],[500,316],[420,408],[500,408]]) C(cx,cy,9,'chair',5);
-  wall(590,440,t,50,5); R(608,440,bw-t-608,30,'counter',5,{cage:true});
-  restroom(bw-t-160,t,160,150,5,'S',false);
-  flo(130,440,220,102,5,{bar:true}); R(140,468,200,30,'counter',5,royal); R(140,516,200,18,'shelf',5,{bar:true}); for(let i=0;i<3;i++) C(170+i*70,448,10,'stool',5); for(let i=0;i<2;i++) lamp(190+i*100,490,'lamp',130,5,{indoor:true});
-  dec('neon',bx+400,by+5*UG+40,{text:'CASINO',col:'#e0b44a',size:18}); for(const [px,py] of [[200,150],[480,150],[560,520]]) dec('plant',bx+px,by+py+5*UG,{ph:srnd(TAU)});
-  lamp(bw/2,220,'chandelier',340,5); for(let i=0;i<2;i++) lamp(120+i*520,220,'club',220,5,{warm:true});
-  if(MODE!=='kit'){ for(let i=0;i<6;i++) spawnLoot(bx+srnd(bw-100,50),by+srnd(bh-100,50)+5*UG,lootRoll(.8)); { const lv=rollVaultArmor(); spawnLoot(bx+630,by+510+5*UG,{t:'vest',lvl:lv,hp:vestHpMax(lv)}); } }
-  stairs(bx+bw-70,by+bh-60,5,3,'stairs');
-  hatches.push({x:bx+70,y:by+60,a:5,b:6,kind:'stairs',key:true});
-  /* THE OWNER'S FLOOR (6): the penthouse, an en-suite, the stash */
-  flo(t,t,bw-2*t,bh-2*t,6,{carpet:true,clubLv:6,priv2:true});
-  R(400,60,150,70,'table',6,{desk:true}); C(475,150,10,'chair',6); R(60,200,70,110,'bed',6); R(60,bh-140,220,44,'sofa',6,royal);
-  R(bw-120,bh-160,60,110,'locker',6); R(bw/2-20,bh-60,40,40,'crate',6); R(60,340,34,110,'locker',6,{book:true});
-  for(const [px,py] of [[200,60],[560,400],[360,340]]) dec('plant',bx+px,by+py+6*UG,{ph:srnd(TAU)}); dec('picture',bx+200,by+6*UG+22,{w:60,h:36,gold:true,col:'#7a1522'}); dec('picture',bx+520,by+6*UG+22,{w:40,h:30,gold:true,col:'#2a3a5a'}); dec('mat',bx+95,by+6*UG+300,{w:34,h:44,col:'#7a1522'});
-  wall(bw/2,0,t,bh*.55,6);
-  flo(600,t,bw-t-600,160-t,6,{tile:true}); wall(600,t,t,160,6); wall(600,160,60,t,6); D(660,160,60,t,6); wall(720,160,bw-t-720,t,6);
-  R(624,30,44,100,'tub',6); C(720,60,11,'toilet',6); R(690,100,48,26,'counter',6,{sink:true});
-  lamp(bw/2,bh/2,'chandelier',320,6); for(let i=0;i<2;i++) lamp(120+i*520,bh/2,'lamp',240,6); lamp(670,90,'bulb',160,6,{indoor:true});
-  if(MODE!=='kit'){ spawnLoot(bx+720,by+480+6*UG,{t:'helm',lvl:Math.max(7,rollVaultArmor())}); spawnLoot(bx+720,by+520+6*UG,{t:'gun',id:'scar',rounds:20}); spawnLoot(bx+560,by+520+6*UG,{t:'ammo',id:'762',n:60}); spawnLoot(bx+120,by+120+6*UG,{t:'heal',id:'medkit',n:2}); spawnLoot(bx+475,by+100+6*UG,{t:'perk',id:'hh'}); spawnLoot(bx+520,by+100+6*UG,{t:'perk',id:'si'}); for(let i=0;i<4;i++) spawnLoot(bx+srnd(bw-100,50),by+srnd(bh-100,50)+6*UG,lootRoll(1)); }
-  CLUB.ox=bx+bw/2; CLUB.oy=by+bh/2+5*UG;   // where the owner stands guard
-  /* ROOF (3): open terrace, vents, a hot tub, a roof bar, and a rifle waiting */
-  for(let i=0;i<5;i++) R(60+i*110,60,50,50,'vent',3);
-  R(60,400,220,30,'sofa',3,royal); R(300,400,120,30,'table',3,royal); R(560,290,120,90,'tub',3,{hot:true});
-  flo(240,470,220,72,3,{bar:true}); R(250,480,200,36,'counter',3,royal); R(250,520,200,18,'shelf',3,{bar:true}); for(let i=0;i<3;i++) C(280+i*70,460,10,'stool',3); for(let i=0;i<4;i++) lamp(130+i*160,300,'lamp',150,3,{indoor:true});
-  for(const [px,py] of [[40,200],[720,200],[40,520]]) dec('plant',bx+px,by+py+3*UG,{ph:srnd(TAU)}); dec('neon',bx+350,by+3*UG+460,{text:'ROOF BAR',col:'#ff3060',size:13});
-  lamp(bw/2,bh/2,'neon',360,3);
-  if(MODE!=='kit'){ spawnLoot(bx+640,by+80+3*UG,{t:'gun',id:'mosin',rounds:5}); spawnLoot(bx+600,by+80+3*UG,{t:'ammo',id:'762',n:20});
-    for(let i=0;i<5;i++) spawnLoot(bx+srnd(bw-80,40),by+srnd(bh-80,40)+2*UG,lootRoll(.7)); for(let i=0;i<4;i++) spawnLoot(bx+srnd(bw-80,40),by+srnd(bh-80,40),lootRoll(.6)); }
+  /* ─── shells ─── */
+  for(const l of [0,2,5,6]){ W(0,0,bw,t,l); W(0,bh-t,bw,t,l); if(l===0){ vwall(0,0,bh,0,[[260,110]]); vwall(bw-t,0,bh,0,[[150,70]]); } else { W(0,0,t,bh,l); W(bw-t,0,t,bh,l); }
+    F(0,0,bw,bh,l,{clubLv:l,bldg:l===0,casino:l===5,priv2:l===6}); }
+  // the roof: a parapet you can shoot over
+  for(const [x,y,w,h] of [[0,0,bw,10],[0,bh-10,bw,10],[0,0,10,bh],[bw-10,0,10,bh]]) addRect(bx+x,by+y+3*UG,w,h,'rail',{gold:true});
+  F(0,0,bw,bh,3,{clubLv:3});
+
+  /* ─── GROUND (0): lobby | main hall | kitchen + security · hallway · restrooms, storage, stairs ─── */
+  { const l=0;
+    vwall(300,t,600,l,[[240,60],[320,60]]);            // lobby | hall — a double door
+    vwall(900,t,600,l,[[120,70],[420,70]]);            // hall | kitchen (top) and security (bottom)
+    hwall(900,bw-t,300,l,[]);                          // kitchen | security
+    hwall(t,bw-t,600,l,[[120,80],[330,70],[830,70],[1000,80]]);   // the hallway's north wall: doors from lobby, hall ×2 (either side of the stage), security
+    hwall(t,bw-t,700,l,[[150,70],[450,70],[740,70],[1000,80]]);   // south wall: restrooms, storage, stair room
+    vwall(320,718,bh-t,l,[]); vwall(620,718,bh-t,l,[]); vwall(860,718,bh-t,l,[]);
+    F(t,618,bw-2*t,82,l,{tile:true});
+    // lobby: red carpet in, the coat check, plants, the velvet ropes
+    F(t,240,282,150,l,{carpet:true}); rope(64,232,180,8,l); rope(64,390,180,8,l); R(t+4,420,60,26,'counter',l); dc('neon',t+34,412,l,{text:'COAT CHECK',col:'#3fbfff',size:7}); R(t+6,450,56,30,'locker',l);
+    for(const [px,py] of [[40,40],[260,40],[40,560],[260,560]]) dc('plant',px,py,l,{ph:srnd(TAU)}); dc('poster',290,120,l,{col:'#c8352c'}); dc('poster',290,470,l,{col:'#e0b44a'}); lamp(160,120,'chandelier',260,l); lamp(160,480,'lamp',220,l,{indoor:true});
+    dc('neon',160,60,l,{text:'BLACKWATER',col:'#ff3060',size:18});
+    // the main hall: the long bar, booths, the stage, pillars, lights
+    bar(360,50,480,l,'BLACKWATER'); for(let i=0;i<4;i++) booth(740,150+i*105,l); dc('neon',790,130,l,{text:'BOOTHS',col:'#e0b44a',size:10});
+    R(380,520,440,60,'stage',l); R(540,530,120,36,'table',l,{dj:true}); R(392,526,28,50,'locker',l,{speaker:true}); R(780,526,28,50,'locker',l,{speaker:true}); dc('neon',600,500,l,{text:'DJ',col:'#3fbf6a',size:12}); dc('cable',358,575,l,{dx:180,dy:-6});
+    pillars([[340,180],[620,180],[340,470],[620,470]],l); for(let i=0;i<3;i++) lamp(420+i*180,300,'club',240,l); lamp(600,180,'chandelier',320,l); lamp(600,420,'chandelier',320,l);
+    dc('spill',500,300,l,{r:12,ph:.5}); dc('bottle',700,240,l,{n:3,c:4}); dc('bottle',420,440,l,{n:2,c:1}); prop(864,26,36,30,'vend',l); prop(824,26,36,30,'vend',l);
+    // kitchen, with the back door onto the patio
+    F(918,t,bw-t-918,300-t,l,{checker:true}); R(930,30,220,34,'counter',l,{kitchen:true}); R(1140,30,40,60,'locker',l,{fridge:true}); R(930,200,34,90,'counter',l,{kitchen:true}); R(960,250,180,30,'shelf',l); R(1030,120,90,60,'table',l); dc('bottle',1080,150,l,{n:3,c:3}); lamp(1050,160,'bulb',200,l,{indoor:true});
+    // security office
+    F(918,318,bw-t-918,282,l,{priv:true}); R(930,330,44,90,'locker',l); R(980,330,44,90,'locker',l); R(1050,330,110,30,'counter',l,{tv:true}); R(1060,420,90,50,'table',l,{desk:true}); C(1105,500,9,'chair',l); prop(1110,540,50,40,'wcrate',l); prop(930,540,30,22,'breaker',l); lamp(1050,460,'bulb',200,l,{indoor:true}); dc('poster',1170,480,l,{col:'#3fbfff'});
+    // south of the hallway
+    restroom(t,718,302,bh-t-718,l,'N',180,false); restroom(338,718,282,bh-t-718,l,'N',470,true);
+    F(638,718,222,bh-t-718,l,{}); R(650,740,60,120,'shelf',l); R(720,740,40,40,'crate',l); R(770,740,40,40,'crate',l); R(720,800,60,60,'crate',l); prop(790,820,50,40,'wcrate',l); lamp(750,800,'bulb',180,l,{indoor:true});
+    F(878,718,bw-t-878,bh-t-718,l,{carpet:true}); dc('neon',1030,735,l,{text:'LOUNGE ▲',col:'#e0b44a',size:12}); lamp(1030,800,'lamp',200,l,{indoor:true});
+    for(let i=0;i<8;i++) dc('picture',120+i*140,609,l,{w:26,h:18,gold:true,col:['#7a1522','#2a3a5a','#1a1416'][i%3]});
+    for(let i=0;i<4;i++) lamp(200+i*280,659,'bulb',180,l,{indoor:true});
+    // outside: marquee, queue, the bouncer, the patio
+    F(-180,240,180,150,l,{carpet:true}); rope(-170,232,160,8,l); rope(-170,390,160,8,l); dc('neon',-90,200,l,{text:'BLACKWATER',col:'#ff3060',size:22}); dc('neon',-90,430,l,{text:'TONIGHT · OPEN LATE',col:'#e0b44a',size:10}); lamps.push({x:bx-90,y:by+200,kind:'neon',r:340,ph:2,grp:'club'});
+    for(const [px,py] of [[-185,190],[-185,440]]) dc('plant',px,py,l,{ph:srnd(TAU)});
+    F(bw,60,220,260,l,{porch:true}); W(bw+220,60,t,260,l); W(bw,60,220,t,l); W(bw,302,220,t,l);
+    for(let i=0;i<2;i++){ R(bw+40+i*100,150,50,50,'table',l,royal); C(bw+65+i*100,135,9,'stool',l); C(bw+65+i*100,215,9,'stool',l); } for(let i=0;i<2;i++) lamps.push({x:bx+bw+60+i*110,y:by+270,kind:'fire',r:220,ph:i}); dc('bottle',bw+150,110,l,{n:2,c:3});
+    CLUB.bx=bx-90; CLUB.by=by+320;
+    for(let i=0;i<8;i++) loot(srnd(bw-100,50),srnd(560,40),l,lootRoll(.6)); loot(1120,560,l,{t:'ammo',id:'12g',n:12});
+    stairs(bx+1040,by+800,0,2,'stairs'); }
+
+  /* ─── LOUNGE (2): VIP rooms and the lounge bar north of the hallway; games room, the well, restroom and stairs south ─── */
+  { const l=2;
+    hwall(t,bw-t,400,l,[[100,70],[340,70],[580,70],[820,70],[1020,80]]); hwall(t,bw-t,500,l,[[150,80],[600,80],[1000,80]]);
+    F(t,418,bw-2*t,82,l,{tile:true});
+    for(let i=0;i<4;i++){ const x=t+i*220; if(i<3) vwall(x+220,t,400,l,[]); F(x,t,220,382,l,{priv:true}); R(x+20,t+40,180,44,'sofa',l,royal); R(x+60,t+100,100,40,'table',l,royal); R(x+20,t+170,44,80,'locker',l); dc('picture',x+110,t+2,l,{w:40,h:26,gold:true,col:['#7a1522','#2a3a5a','#1a1416','#5a1a22'][i]}); dc('bottle',x+110,t+118,l,{n:2,c:i}); lamp(x+110,t+200,'club',200,l,{warm:true}); dc('neon',x+110,t+300,l,{text:'VIP '+(i+1),col:'#e0b44a',size:10}); if(srand()<.5) loot(x+110,t+340,l,lootRoll(.9)); }
+    vwall(900,t,400,l,[]); bar(920,80,240,l,'LOUNGE'); booth(930,300,l); booth(1080,300,l); lamp(1040,330,'chandelier',260,l);
+    vwall(300,518,bh-t,l,[]); vwall(900,518,bh-t,l,[[760,80]]); hwall(900,bw-t,700,l,[]);
+    F(t,518,282,bh-t-518,l,{}); for(let i=0;i<2;i++){ R(40,560+i*140,100,60,'table',l,{felt:true}); C(90,545+i*140,9,'chair',l); C(90,635+i*140,9,'chair',l); } R(160,820,120,30,'counter',l,royal); R(250,560,40,90,'locker',l,{book:true}); dc('neon',160,840,l,{text:'GAMES',col:'#3fbf6a',size:12}); lamp(160,660,'lamp',220,l,{indoor:true});
+    F(318,518,582,bh-t-518,l,{}); F(400,560,420,260,l,{well:true}); for(const [x,y,w,h] of [[400,560,420,10],[400,810,420,10],[400,560,10,260],[810,560,10,260]]) R(x,y,w,h,'rail',l,{gold:true}); pillars([[340,540],[880,540],[340,860],[880,860]],l); lamp(610,690,'chandelier',300,l); dc('neon',610,540,l,{text:'THE WELL',col:'#e0b44a',size:11});
+    restroom(918,518,bw-t-918,182,l,'N',1000,true); F(918,718,bw-t-918,bh-t-718,l,{carpet:true}); lamp(1040,800,'lamp',200,l,{indoor:true}); dc('neon',1040,735,l,{text:'▲ CASINO  ▼ GROUND',col:'#e0b44a',size:10});
+    for(let i=0;i<5;i++) dc('picture',140+i*220,409,l,{w:26,h:18,gold:true,col:'#7a1522'}); for(let i=0;i<4;i++) lamp(200+i*280,459,'bulb',180,l,{indoor:true});
+    for(let i=0;i<6;i++) loot(srnd(bw-100,50),srnd(bh-100,50),l,lootRoll(.75));
+    stairs(bx+360,by+700,2,5,'stairs'); }
+
+  /* ─── CASINO (5): slots, cards and the cage north; the casino bar, roulette, restroom and stairs south ─── */
+  { const l=5;
+    hwall(t,bw-t,400,l,[[200,80],[720,80],[1000,80]]); hwall(t,bw-t,500,l,[[150,80],[600,80],[1000,80]]); F(t,418,bw-2*t,82,l,{tile:true});
+    vwall(600,t,400,l,[]); vwall(900,t,400,l,[[260,70]]);
+    for(let r=0;r<3;r++) for(let i=0;i<8;i++) R(50+i*66,60+r*110,40,34,'slot',l); lamp(300,200,'chandelier',320,l); dc('neon',300,30,l,{text:'CASINO',col:'#e0b44a',size:20});
+    for(let i=0;i<3;i++){ R(640+(i%2)*130,60+Math.floor(i/2)*130,90,54,'table',l,{felt:true}); for(const [cx,cy] of [[626+(i%2)*130,87+Math.floor(i/2)*130],[744+(i%2)*130,87+Math.floor(i/2)*130]]) C(cx,cy,9,'chair',l); } R(640,300,220,64,'table',l,{felt:true}); for(let i=0;i<4;i++) C(660+i*60,286,9,'chair',l); lamp(750,200,'club',220,l,{warm:true});
+    F(918,t,bw-t-918,382,l,{priv:true}); R(930,60,230,30,'counter',l,{cage:true}); R(940,120,44,90,'locker',l); R(1000,120,44,90,'locker',l); prop(1100,130,50,40,'wcrate',l); R(940,300,200,30,'counter',l); lamp(1050,220,'bulb',200,l,{indoor:true});
+    { const lv=rollVaultArmor(); loot(1130,250,l,{t:'vest',lvl:lv,hp:vestHpMax(lv)}); loot(1080,250,l,{t:'ammo',id:'762',n:40}); }
+    vwall(400,518,bh-t,l,[]); vwall(900,518,bh-t,l,[[760,80]]); hwall(900,bw-t,700,l,[]);
+    F(t,518,382,bh-t-518,l,{}); bar(40,660,200,l,'BAR'); booth(60,800,l); dc('neon',360,540,l,{text:'▼ LOUNGE',col:'#e0b44a',size:9});
+    F(418,518,482,bh-t-518,l,{}); for(const [rx,ry] of [[500,620],[800,620],[650,780]]) C(rx,ry,52,'roulette',l); pillars([[440,540],[880,540],[440,860],[880,860]],l); lamp(650,690,'chandelier',300,l);
+    restroom(918,518,bw-t-918,182,l,'N',1000,false); F(918,718,bw-t-918,bh-t-718,l,{carpet:true}); lamp(1040,800,'lamp',200,l,{indoor:true}); dc('neon',1040,735,l,{text:'▲ ROOF',col:'#e0b44a',size:12});
+    for(let i=0;i<4;i++) lamp(200+i*280,459,'bulb',180,l,{indoor:true});
+    for(let i=0;i<7;i++) loot(srnd(bw-100,50),srnd(bh-100,50),l,lootRoll(.85));
+    stairs(bx+1040,by+800,5,3,'stairs'); hatches.push({x:bx+300,y:by+459,a:5,b:6,kind:'stairs',key:true}); dc('neon',300,430,l,{text:"OWNER'S FLOOR — KEY",col:'#c8352c',size:9});
+    CLUB.ox=bx+650; CLUB.oy=by+690+5*UG; }
+
+  /* ─── THE OWNER'S FLOOR (6): bedroom + en-suite, office, private bar north; gym, the stash, cinema south ─── */
+  { const l=6;
+    hwall(t,bw-t,400,l,[[150,80],[700,80],[1000,80]]); hwall(t,bw-t,500,l,[[150,80],[500,80],[900,80]]); F(t,418,bw-2*t,82,l,{carpet:true});
+    vwall(400,t,400,l,[[200,60]]); vwall(600,t,400,l,[]); vwall(900,t,400,l,[]);
+    F(t,t,382,382,l,{carpet:true,priv2:true}); R(40,40,90,140,'bed',l); R(140,40,34,34,'table',l,{night:true}); R(300,40,70,120,'locker',l); R(40,300,220,44,'sofa',l,royal); dc('picture',200,20,l,{w:60,h:36,gold:true,col:'#7a1522'}); dc('mat',150,200,l,{w:60,h:40,col:'#7a1522'}); lamp(200,220,'chandelier',280,l);
+    F(418,t,182,382,l,{tile:true}); R(430,30,50,110,'tub',l); C(560,60,11,'toilet',l); R(520,300,60,26,'counter',l,{sink:true}); dc('towel',580,200,l,{col:'#cfe6f2'}); lamp(510,200,'bulb',170,l,{indoor:true});
+    F(618,t,282,382,l,{priv2:true}); R(660,60,150,70,'table',l,{desk:true}); C(735,150,10,'chair',l); R(630,200,34,150,'locker',l,{book:true}); R(850,200,34,150,'locker',l,{book:true}); loot(735,240,l,{t:'perk',id:'hh'}); loot(780,240,l,{t:'perk',id:'si'}); lamp(760,260,'lamp',220,l,{indoor:true}); dc('picture',760,20,l,{w:40,h:30,gold:true,col:'#2a3a5a'});
+    bar(920,80,240,l,'PRIVATE'); booth(930,300,l); booth(1080,300,l); lamp(1040,330,'chandelier',260,l);
+    vwall(400,518,bh-t,l,[]); vwall(700,518,bh-t,l,[]);
+    F(t,518,382,bh-t-518,l,{}); for(let i=0;i<3;i++) R(40+i*110,560,80,120,'counter',l,{tv:true}); R(40,740,300,30,'shelf',l); dc('mat',200,820,l,{w:120,h:40,col:'#2a3a5a'}); lamp(200,700,'bulb',200,l,{indoor:true}); dc('neon',200,540,l,{text:'GYM',col:'#3fbfff',size:11});
+    F(418,518,282,bh-t-518,l,{vault:true}); for(let i=0;i<3;i++) R(440+i*80,760,60,110,'locker',l); prop(440,690,50,40,'wcrate',l); prop(520,690,50,40,'wcrate',l); R(620,690,40,40,'crate',l); loot(660,640,l,{t:'helm',lvl:Math.max(8,rollVaultArmor())}); loot(600,640,l,{t:'gun',id:'scar',rounds:20}); loot(540,640,l,{t:'ammo',id:'762',n:60}); loot(480,640,l,{t:'heal',id:'medkit',n:2}); loot(440,640,l,{t:'melee',id:'katana'}); lamp(560,660,'bulb',200,l,{indoor:true}); dc('neon',560,540,l,{text:'THE STASH',col:'#e0b44a',size:11});
+    F(718,518,bw-t-718,bh-t-518,l,{priv2:true}); R(740,830,420,36,'counter',l,{tv:true}); for(let i=0;i<3;i++) R(740,600+i*80,300,44,'sofa',l,royal); lamp(950,700,'club',260,l,{warm:true}); dc('neon',950,860,l,{text:'CINEMA',col:'#ff3060',size:11});
+    for(let i=0;i<4;i++) lamp(200+i*280,459,'lamp',200,l,{indoor:true});
+    for(let i=0;i<4;i++) loot(srnd(bw-100,50),srnd(bh-100,50),l,lootRoll(1)); }
+
+  /* ─── THE ROOF (3): the pool and its deck, sunbeds, the roof bar, a hot tub, a restroom hut ─── */
+  { const l=3;
+    F(240,180,720,520,l,{tile:true}); addRect(bx+340,by+280+l*UG,520,320,'water',{sight:false,bullet:false,water:true,pool:true});
+    for(const [x,y,w,h] of [[340,280,520,8],[340,592,520,8],[340,280,8,320],[852,280,8,320]]) R(x,y,w,h,'rail',l,{gold:true});
+    for(let i=0;i<5;i++) R(300+i*120,190,80,30,'sofa',l,{royal:false}); for(let i=0;i<5;i++) R(300+i*120,660,80,30,'sofa',l,{royal:false});
+    bar(920,80,240,l,'ROOF BAR'); booth(930,300,l); booth(1080,300,l);
+    R(980,400,140,100,'tub',l,{hot:true}); dc('towel',1140,450,l,{col:'#cfe6f2'});
+    for(let i=0;i<4;i++) R(40+i*90,40,50,50,'vent',l);
+    hwall(t,340,700,l,[[180,70]]); vwall(340,718,bh-t,l,[]); restroom(t,718,322,bh-t-718,l,'N',180,false);
+    F(878,718,bw-t-878,bh-t-718,l,{carpet:true}); dc('neon',1040,735,l,{text:'▼ CASINO',col:'#e0b44a',size:12});
+    for(let i=0;i<6;i++){ lamp(300+i*120,170,'lamp',150,l,{indoor:true}); lamp(300+i*120,690,'lamp',150,l,{indoor:true}); } lamp(600,440,'club',380,l,{warm:true}); for(const [px,py] of [[260,160],[940,160],[260,720],[600,860]]) dc('plant',px,py,l,{ph:srnd(TAU)});
+    loot(1100,60,l,{t:'gun',id:'kar',rounds:5}); loot(1060,60,l,{t:'ammo',id:'762',n:20}); for(let i=0;i<5;i++) loot(srnd(bw-100,50),srnd(160,40),l,lootRoll(.7)); }
+
   lamps.push({x:bx-30,y:by-30,kind:'lamp',r:260,ph:0});
   CLUB.x=bx+bw/2; CLUB.y=by+bh/2; CLUB.has=true;
 }
@@ -3146,6 +3167,8 @@ function drawObstacle(o){
     if(o.indoor){ ctx.fillStyle='rgba(0,0,0,.12)'; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs) for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs) if(((x/gs)+(y/gs))%3===0) ctx.fillRect(x+2,y+2,gs-4,gs-4); }
     return; }
   if(o.kind==='water'){ const x0=Math.max(o.x,cam.x-300), y0=Math.max(o.y,cam.y-300), x1=Math.min(o.x+o.w,cam.x+VWw+300), y1=Math.min(o.y+o.h,cam.y+VHw+300); if(x1<=x0||y1<=y0) return;
+    if(o.pool){ ctx.fillStyle='#2a8fb8'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1; const gs=40; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs){ if(x<o.x) continue; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke(); } for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs){ if(y<o.y) continue; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); }
+      ctx.strokeStyle='rgba(220,245,255,.45)'; ctx.lineWidth=2; for(let y=Math.floor(y0/56)*56;y<y1;y+=56){ ctx.beginPath(); for(let x=x0;x<=x1;x+=24){ const yy=y+Math.sin(x/70+tNow/700+y*.05)*7+Math.sin(x/33-tNow/900)*3; if(yy<o.y||yy>o.y+o.h) continue; x===x0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); } ctx.stroke(); } ctx.fillStyle='#e6ecef'; ctx.fillRect(o.x-6,o.y-6,o.w+12,6); ctx.fillRect(o.x-6,o.y+o.h,o.w+12,6); ctx.fillRect(o.x-6,o.y,6,o.h); ctx.fillRect(o.x+o.w,o.y,6,o.h); return; }
     ctx.fillStyle='#16303c'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeStyle='rgba(120,180,200,.16)'; ctx.lineWidth=2;
     for(let y=Math.floor(y0/70)*70;y<y1;y+=70){ ctx.beginPath(); for(let x=x0;x<=x1;x+=40){ const yy=y+Math.sin(x/90+tNow/900+y)*6; x===x0?ctx.moveTo(x,yy):ctx.lineTo(x,yy); } ctx.stroke(); }
     return; }
