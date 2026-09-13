@@ -3765,7 +3765,8 @@ function stateHash(){
 }
 function netDesync(t){ $('netBanner').textContent='DESYNC at tick '+t+' — the two games disagreed; restart the match'; $('netBanner').style.display='block'; $('netBanner').style.color='#e05a48'; }
 async function netInit(){
-  NET.sig=await sigProbe();
+  // the public server's address arrives from server.json a moment after load: give the probe a few tries before giving up on room codes
+  for(let i=0;i<8&&!(NET.sig=await sigProbe());i++) await new Promise(r=>setTimeout(r,600));
   if(NET.sig!=='php'){ $('hostHelp').textContent='Make a code, send it to your friend, paste back their reply. You pick the mode and press start.';
     $('joinHelp').textContent='Paste the host\'s code, send back the reply it gives you. Pick a kit while you wait.';
     $('btnHost').textContent='CREATE CODE'; $('roomJoin').style.display='none'; $('btnJoin').style.display='none'; $('joinManual').style.display='block'; }
