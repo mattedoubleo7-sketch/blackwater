@@ -1153,10 +1153,7 @@ function club(bx,by){ const bw=CLUB_W, bh=CLUB_H, t=18, door=110;
   /* GROUND: red carpet from the door between velvet ropes, the gold-edged dance floor ringed with ropes (gaps on every
      side), the long bar, crimson booths, the DJ riser, two restrooms, vending machines and the breaker box */
   flo(t,240,152,80,0,{carpet:true}); rope(38,228,130,8,0); rope(38,324,130,8,0);
-  flo(250,160,300,240,0,{dance:true});
-  rope(242,152,110,8,0); rope(448,152,110,8,0); rope(242,400,110,8,0); rope(448,400,110,8,0);
-  rope(242,160,8,82,0); rope(242,318,8,84,0); rope(550,152,8,90,0); rope(550,318,8,90,0);
-  for(const [px,py] of [[564,150],[564,410]]) C(px,py,14,'pillar',0);
+  for(const [px,py] of [[236,150],[564,150],[236,410],[564,410]]) C(px,py,14,'pillar',0);   // the open floor between the bar and the stage
   // THE BAR: dark-wood bar floor, a back bar of bottles under a neon sign, the counter with its brass rail, stools, pendant lights
   flo(240,t,320,124,0,{bar:true}); R(250,22,300,18,'shelf',0,{bar:true}); R(250,66,300,34,'counter',0,royal); dec('rail',bx+252,by+104,{dx:296,dy:0});
   for(let i=0;i<5;i++) C(270+i*70,124,10,'stool',0); for(let i=0;i<3;i++) lamp(300+i*100,52,'lamp',130,0,{indoor:true});
@@ -1171,7 +1168,7 @@ function club(bx,by){ const bw=CLUB_W, bh=CLUB_H, t=18, door=110;
   restroom(t,t,232,150,0,'S',false); restroom(t,bh-t-150,232,150,0,'N',true);
   prop(562,20,36,30,'vend',0); prop(604,20,36,30,'vend',0); prop(584,520,30,22,'breaker',0);
   lamp(bw/2-90,280,'chandelier',300,0); lamp(bw/2+90,280,'chandelier',300,0);
-  for(let i=0;i<2;i++) lamp(300+i*200,200,'club',200,0); lamp(400,440,'club',200,0);
+  for(let i=0;i<3;i++) lamp(280+i*120,240,'club',200,0); lamp(400,440,'club',200,0);
   lamps.push({x:bx-40,y:by+bh/2,kind:'lamp',r:280,ph:0}); lamps.push({x:bx+bw/2,y:by-40,kind:'neon',r:300,ph:0,grp:'club'});
   // OUTSIDE: a marquee over the door, a roped queue lane, the bouncer's spot, a smoking patio out back with heaters
   flo(-170,bh*.5-70,170,140,0,{carpet:true}); rope(-160,bh*.5-78,150,8,0); rope(-160,bh*.5+70,150,8,0);
@@ -1184,8 +1181,8 @@ function club(bx,by){ const bw=CLUB_W, bh=CLUB_H, t=18, door=110;
   dec('spill',bx+bw+120,by+bh-60,{r:10,ph:1}); dec('bottle',bx+bw+150,by+bh-190,{n:2,c:3});
   // INSIDE: the coat check by the door, go-go platforms at the dance floor's corners, more signs
   R(t+4,174,54,24,'counter',0); dec('neon',bx+t+32,by+166,{text:'COAT CHECK',col:'#3fbfff',size:7}); dec('poster',bx+t+70,by+186,{w:14,h:20,col:'#c8352c'});
-  for(const [px,py] of [[254,164],[502,164],[254,366],[502,366]]) R(px,py,44,30,'stage',0);
-  dec('neon',bx+bw-90,by+230,{text:'BOOTHS',col:'#e0b44a',size:10}); dec('neon',bx+400,by+150,{text:'DANCE',col:'#ff60a0',size:11}); dec('neon',bx+300,by+114,{text:'COCKTAILS',col:'#3fbf6a',size:9});
+
+  dec('neon',bx+bw-90,by+230,{text:'BOOTHS',col:'#e0b44a',size:10}); dec('neon',bx+300,by+114,{text:'COCKTAILS',col:'#3fbf6a',size:9});
   CLUB.bx=bx-85; CLUB.by=by+bh*.5+40;   // where the bouncer stands
   stairs(bx+bw-70,by+bh-60,0,2,'stairs');
   /* LOUNGE (2): gold rails around the well over the dance floor, velvet rooms, a bar, the security office, a VIP restroom */
@@ -3108,7 +3105,7 @@ function drawObstacle(o){
         ctx.fillStyle='rgba(255,255,255,.7)'; const cx=o.x+o.w/2, cy=o.y+o.h/2; for(let i=0;i<40;i++){ const a=i*2.399+tNow/2600, r=(i*37%100)/100; const px=cx+Math.cos(a)*r*o.w*.5, py=cy+Math.sin(a)*r*o.h*.5; if(Math.sin(tNow/150+i)>.3){ ctx.beginPath(); ctx.arc(px,py,1.3,0,TAU); ctx.fill(); } }
         ctx.fillStyle='#c9ccd0'; ctx.beginPath(); ctx.arc(cx,cy,7,0,TAU); ctx.fill(); ctx.fillStyle='rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(cx-2,cy-2,2.5,0,TAU); ctx.fill(); ctx.restore(); }
       return; }
-    if(o.well){ ctx.fillStyle='#050608'; ctx.fillRect(x0,y0,x1-x0,y1-y0); const tile=60; ctx.globalAlpha=.45; for(let x=Math.floor(x0/tile)*tile;x<x1;x+=tile) for(let y=Math.floor(y0/tile)*tile;y<y1;y+=tile){ if(x<o.x||y<o.y||x>=o.x+o.w||y>=o.y+o.h) continue; const ph=((x/tile)|0)*1.7+((y/tile)|0)*2.3; const pal=['#c8352c','#e0b44a','#ffffff','#7a1522']; const on=Math.sin(tNow/260+ph)>.1; ctx.fillStyle=on?pal[Math.floor(tNow/450+ph)%4]:'#101014'; ctx.fillRect(x+6,y+6,tile-12,tile-12); } ctx.globalAlpha=1; ctx.strokeStyle='#e0b44a'; ctx.lineWidth=3; ctx.strokeRect(o.x,o.y,o.w,o.h); return; }
+    if(o.well){ ctx.fillStyle='#050608'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.globalAlpha=.35; ctx.fillStyle='#3a0f16'; ctx.fillRect(o.x+10,o.y+10,o.w-20,o.h-20); const gs=44; ctx.fillStyle='rgba(224,180,74,.13)'; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs) for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs){ if(x<o.x+10||y<o.y+10||x+gs>o.x+o.w-10||y+gs>o.y+o.h-10) continue; ctx.beginPath(); ctx.moveTo(x+gs/2,y+6); ctx.lineTo(x+gs-6,y+gs/2); ctx.lineTo(x+gs/2,y+gs-6); ctx.lineTo(x+6,y+gs/2); ctx.closePath(); ctx.fill(); } ctx.globalAlpha=1; ctx.strokeStyle='#e0b44a'; ctx.lineWidth=3; ctx.strokeRect(o.x,o.y,o.w,o.h); return; }
     if(o.casino){ ctx.fillStyle='#3a1418'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.fillStyle='rgba(224,180,74,.10)'; const gs=40; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs) for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs){ if(x<o.x||y<o.y) continue; if(((x/gs)+(y/gs))%2===0) ctx.fillRect(x+4,y+4,gs-8,gs-8); } innerShade(o,40,.45); return; }
     if(o.priv2){ ctx.fillStyle='#231d2c'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeStyle='rgba(224,180,74,.12)'; ctx.lineWidth=1; for(let x=Math.floor(x0/64)*64;x<x1;x+=64){ if(x<o.x) continue; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke(); } for(let y=Math.floor(y0/64)*64;y<y1;y+=64){ if(y<o.y) continue; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); } return; }
     if(o.plank){ ctx.fillStyle=o.col||'#5a4330'; ctx.fillRect(x0,y0,x1-x0,y1-y0); const ph=18; ctx.strokeStyle='rgba(0,0,0,.28)'; ctx.lineWidth=1; for(let y=Math.floor(y0/ph)*ph;y<y1;y+=ph){ if(y<o.y) continue; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); const row=(y/ph)|0; for(let x=Math.floor(x0/120)*120+(row%2)*60;x<x1;x+=120){ if(x<o.x) continue; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,Math.min(y+ph,y1)); ctx.stroke(); } }
