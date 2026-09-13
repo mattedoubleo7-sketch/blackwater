@@ -3483,16 +3483,22 @@ function frame(ts){
   if(IS_SERVER) return;
   requestAnimationFrame(frame);
   const rdt = Math.min(.1,(ts-lastT)/1000||0); lastT=ts;
-  if(!running){ if($('start').style.display!=='none') drawMenuBg(rdt); return; }
-  if(IO.on){ ioFrame(rdt); render(); hud(); return; }
+  if(!running){ if($('start').style.display!=='none'){ try{ drawMenuBg(rdt); }catch(e){ showErr(e); } } return; }
+  if(IO.on){ ioFrame(rdt); try{ render(); hud(); }catch(e){ showErr(e); } return; }
   acc+=rdt; let n=0;
   while(acc>=STEP && n<5){
     if(NET.on && !netReady()) break;      // lockstep: the other side's input for this tick isn't here yet
     stepSim(); acc-=STEP; n++;
   }
   if(acc>STEP*5) acc=STEP*5;
-  render(); hud();
+  try{ render(); hud(); }catch(e){ showErr(e); }
 }
+// a frame that throws must never leave a black screen: paint the error where it can be read and keep going
+const ERRS={seen:new Set(),last:''};
+function showErr(e){ const msg=(e&&e.message||String(e))+' @'+((e&&e.stack||'').split(String.fromCharCode(10))[1]||'').trim().slice(-40); ERRS.last=msg;
+  if(!ERRS.seen.has(msg)){ ERRS.seen.add(msg); try{ addLog('ERROR: '+msg,true); }catch(x){} console.error(e); }
+  try{ ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle='rgba(120,20,20,.85)'; ctx.fillRect(0,0,VW,54); ctx.fillStyle='#fff'; ctx.font='500 13px Consolas,monospace'; ctx.textAlign='left'; ctx.fillText('RENDER ERROR — tell Claude this: '+msg,12,22); ctx.fillText('map '+MAPID+' · layer '+(P?layerOf(P):'-')+' · '+(IO.on?'public':NET.on?'1v1':'solo'),12,42); }catch(x){} }
+window.addEventListener('error',ev=>{ try{ showErr(ev.error||ev.message); }catch(x){} });
 function stepSim(){
   const dt=STEP;
   if(hitstop>0 && !IS_SERVER){ hitstop-=dt*1000; tNow+=dt*1000*.12; tick++; return; }
