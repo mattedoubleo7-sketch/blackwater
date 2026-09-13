@@ -2137,7 +2137,7 @@ function updateBullets(dt){
           if(t===P){ A.whizz(P.x,P.y); shake=Math.max(shake,2.5); } break; } }
     }
     b.x=nx; b.y=ny; b.life-=dt;
-    if(hit||b.life<=0||b.x<0||b.y<0||b.x>MAP||b.y>MAP){
+    if(hit||b.life<=0||b.x<0||b.y<0||b.x>MAP||b.y>(UG?UG+MAP:MAP)){
       if(b.hs && !b.resolved && b.own){ b.own.fireSlow=tNow+1000; if(b.own===P) flash('missed the head — slowed 1s'); }
       bullets.splice(i,1);
     }
