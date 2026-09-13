@@ -95,7 +95,7 @@ function packActor(a, now){
 }
 function packMe(a, now){
   return { stam:Math.round(a.stam), ammo:a.ammo, heals:a.heals, nades:a.nades, bleed:Math.round(a.bleed*10)/10, slots:a.slots, sel:a.sel, last:a.last,
-    vh:a.vestHp, vestLvl:a.vest, helmLvl:a.helm, hsCd:rem(a.hsCd,now), fs:rem(a.fireSlow,now), dr:rem(a.drawEnd||0,now), su:rem(a.suppress||0,now), ads:a.ads?1:0, key:a.hasKey?1:0, seq:a.ackSeq|0 };
+    vh:a.vestHp, vestLvl:a.vest, helmLvl:a.helm, hsCd:rem(a.hsCd,now), fs:rem(a.fireSlow,now), dr:rem(a.drawEnd||0,now), su:rem(a.suppress||0,now), ads:a.ads?1:0, key:a.hasKey?1:0, pk:[a.perks?a.perks.hh|0:0,a.perks?a.perks.si|0:0], seq:a.ackSeq|0 };
 }
 function broadcast(){
   if(!clients.size){ events.length = 0; SRV.LOG.length = 0; return; }
