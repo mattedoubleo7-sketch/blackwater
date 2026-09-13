@@ -676,7 +676,7 @@ let obs=[], segs=[], loot=[], bullets=[], parts=[], decals=[], nades=[], bots=[]
 let lamps=[];
 let zone, tNow=0, hitstop=0, shake=0, alive=0, kills=0, startT=0, running=false, ended=false;
 // public servers run battle-royale rounds: a warm-up lobby with respawns, then the fog, then a winner
-const IO_RD={phase:'lobby', until:0, startAt:0, winner:null, n:0};
+const IO_RD={phase:'lobby', until:0, startAt:0, winner:null, n:0, seed:0};
 let actorN=0;   // server-side actor ids (players and bots) so clients can tell everyone apart
 const brRules=()=>MODE==='br' || (MODE==='io' && IO_RD.phase==='live');
 const DOWN_POOL=100, DOWN_BLEED=2.2;   // downed: a 100-point pool that bleeds out in ~45 s; gunfire and the fog drain it faster
@@ -1688,7 +1688,7 @@ function ioRoundEnd(w){
 }
 function ioRoundReset(){
   IO_RD.phase='lobby'; IO_RD.until=players.length?tNow+20000:0; IO_RD.winner=null;
-  const nb=bots.length; MAPID=MAP_IDS[IO_RD.n % MAP_IDS.length]; genWorld(); spawnBots(nb); for(const b of bots) b.id=++actorN; SRV_LOG.push('next map: '+MAPS[MAPID].name);
+  const nb=bots.length; const pool=MAP_IDS.filter(m=>m!==MAPID); MAPID=pool[Math.floor(Math.random()*pool.length)]; IO_RD.seed=(Math.random()*0x7fffffff)|0; SEED=IO_RD.seed; genWorld(); spawnBots(nb); for(const b of bots) b.id=++actorN; SRV_LOG.push('next map: '+MAPS[MAPID].name);
   zone={x:MAP/2,y:MAP/2,r:MAP*1.6,tx:MAP/2,ty:MAP/2,tr:MAP*1.6,stage:0,next:1e12,moving:false,dmg:0};
   ioLootFresh();
   for(const a of [...players,...bots]) respawn(a);
@@ -2751,7 +2751,7 @@ function ioJoin(){
   };
 }
 function ioStart(m){
-  MODE='io'; SEED=m.seed|0; if(m.map&&MAPS[m.map]) MAPID=m.map; IO.seed=SEED; tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0;
+  MODE='io'; SEED=m.seed|0; if(m.map&&MAPS[m.map]) MAPID=m.map; IO.seed=SEED; IO.wseed=SEED; tNow=1000; hitstop=0; shake=0; kills=0; ended=false; tick=0;
   lights.length=0; ghosts.length=0; pings.length=0; hurtArcs.length=0; for(const k in pend) pend[k]=0;
   genWorld(); loot=[]; IO.known=new Set(); IO.byId=new Map(); IO.prev=IO.cur=null; IO.lastMe=null; IO.seq=0; IO.hist=[]; IO.lastInp=null;
   players=[]; bots=[];
@@ -2815,8 +2815,8 @@ function ioSnapshot(m){
   bullets=m.b.map(b=>({x:b[0],y:b[1],dx:b[2],dy:b[3]}));
   nades=m.n.map(n=>({x:n[0],y:n[1],fuse:tNow+n[2]}));
   IO.online=m.online; IO.board=m.board.map(r=>({name:r[0],kills:r[1],me:r[2]===IO.id}));
-  if(m.rd){ const was=IO.rd&&IO.rd.phase; IO.rd={phase:m.rd[0],left:m.rd[1],alive:m.rd[2],winner:m.rd[3],n:m.rd[4],map:m.rd[5]}; IO.rdAt=performance.now();
-    if(IO.rd.map && MAPS[IO.rd.map] && IO.rd.map!==MAPID){ MAPID=IO.rd.map; SEED=IO.seed; genWorld(); loot=[]; IO.known=new Set(); decals=[]; bullets=[]; nades=[]; flash('MAP: '+MAPS[MAPID].name); }
+  if(m.rd){ const was=IO.rd&&IO.rd.phase; IO.rd={phase:m.rd[0],left:m.rd[1],alive:m.rd[2],winner:m.rd[3],n:m.rd[4],map:m.rd[5],seed:m.rd[6]}; IO.rdAt=performance.now();
+    if(IO.rd.map && MAPS[IO.rd.map] && (IO.rd.map!==MAPID || (IO.rd.seed!=null && IO.rd.seed!==IO.wseed))){ MAPID=IO.rd.map; if(IO.rd.seed!=null) IO.seed=IO.rd.seed; IO.wseed=IO.seed; SEED=IO.seed; genWorld(); loot=[]; IO.known=new Set(); decals=[]; bullets=[]; nades=[]; flash('MAP: '+MAPS[MAPID].name); }
     if(was&&was!==IO.rd.phase){ if(IO.rd.phase==='live'){ flash('ROUND '+IO.rd.n+' — LAST ONE BREATHING'); $('spect').style.display='none'; zone.r=MAP*.72; zone.tr=zone.r; zone.x=zone.tx=MAP/2; zone.y=zone.ty=MAP/2; zone.stage=0; zone.moving=false; }
       else if(IO.rd.phase==='over'){ flash(IO.rd.winner ? IO.rd.winner.toUpperCase()+' WINS' : 'NOBODY LEFT'); }
       else { flash('WARM-UP'); $('spect').style.display='none'; zone.r=zone.tr=MAP*1.6; zone.moving=false; } } }
@@ -3156,7 +3156,7 @@ const SRV_LOG=[];
 if(IS_SERVER){
   window.__SRV={
     A, LOG:SRV_LOG, IB, EMPTY_INP,
-    init(seed,nbots){ MODE='io'; SEED=seed|0; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); for(const b of bots) b.id=++actorN; running=true; },
+    init(seed,nbots){ MODE='io'; SEED=seed|0; IO_RD.seed=SEED; MAPID=MAP_IDS[Math.floor(Math.random()*MAP_IDS.length)]; tNow=1000; tick=0; hitstop=0; genWorld(); players=[]; P=null; spawnBots(nbots|0); for(const b of bots) b.id=++actorN; running=true; },
     join(name){ const a=makeActor(0,0,false,name); a.id=++actorN; const sp=findSpawn([...players,...bots]); a.x=sp.x; a.y=sp.y; equipKit(a,'io'); a.streak=0; a.pendInp={...EMPTY_INP}; players.push(a);
       if(IO_RD.phase==='live' && tNow-IO_RD.startAt>45000){ a.dead=true; a.hp=0; } else if(IO_RD.phase==='live') alive++;
       return a; },
