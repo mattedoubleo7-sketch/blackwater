@@ -92,6 +92,7 @@ function broadcast(){
   const rd = [R.phase, rem(R.until, now), aliveN, R.winner, R.n, st.map, R.seed];
   if(st.map !== lastMap){ lastMap = st.map; crateCount = -1; }
   const B = st.bank, bk = [B.open?1:0, B.crackBy?B.crackBy.id:0, rem(B.crackEnd, now)];
+  const pr = st.props.map(p => [p.uses===Infinity?-1:p.uses, p.by?p.by.id:0, rem(p.until, now), p.open?1:0]), rr = rem(st.radar.until, now);
   const zn = st.zone, z = [Math.round(zn.x), Math.round(zn.y), Math.round(zn.r), Math.round(zn.tx), Math.round(zn.ty), Math.round(zn.tr), zn.moving?1:0, zn.stage];
   const lootIds = new Set(st.loot.map(l => l.lid));
   for(const [ws, c] of clients){
@@ -99,14 +100,14 @@ function broadcast(){
     const la = [], lr = [];
     for(const l of st.loot) if(!c.known.has(l.lid)){ c.known.add(l.lid); la.push({lid:l.lid, x:Math.round(l.x), y:Math.round(l.y), t:l.t, id:l.id, lvl:l.lvl, n:l.n, hp:l.hp, rounds:l.rounds}); }
     for(const id of [...c.known]) if(!lootIds.has(id)){ c.known.delete(id); lr.push(id); }
-    const msg = { k:'s', t:now, a:actors, b:bullets, n:nades, online:clients.size, board, me:packMe(c.a, now), rd, z, bk };
+    const msg = { k:'s', t:now, a:actors, b:bullets, n:nades, online:clients.size, board, me:packMe(c.a, now), rd, z, bk, pr, rr };
     if(la.length) msg.la = la; if(lr.length) msg.lr = lr; if(crates.length) msg.cr = crates; if(feed.length) msg.feed = feed; if(ev.length) msg.ev = ev;
     ws.send(JSON.stringify(msg));
   }
 }
 let crateCount = -1;
 function brokenCrates(){ // crates that vanished since last snapshot, by position
-  const st = SRV.state, crates = st.obs.filter(o => o.kind==='crate'||o.kind==='wwall');
+  const st = SRV.state, crates = st.obs.filter(o => o.kind==='crate'||o.kind==='wwall'||o.brk);
   if(crateCount < 0){ crateCount = crates.length; lastCrates = crates.map(o=>[o.x,o.y]); return []; }
   if(crates.length === crateCount) return [];
   const have = new Set(crates.map(o => o.x+','+o.y));
