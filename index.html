@@ -391,6 +391,8 @@
       <footer class="lfoot">
         <div class="row"><span class="lbl">AUDIO</span>
           <div class="opts" id="volOpts"><b data-vol="0">OFF</b><b data-vol="0.3">LOW</b><b data-vol="0.55" class="sel">MID</b><b data-vol="0.85">LOUD</b></div></div>
+        <div class="row"><span class="lbl">GRAPHICS</span>
+          <div class="opts" id="gfxOpts"><b data-gfx="low">LOW</b><b data-gfx="medium">MEDIUM</b><b data-gfx="high" class="sel">HIGH</b><b data-gfxt="reflect" class="sel">REFLECTIONS</b><b data-gfxt="mblur" class="sel">MOTION BLUR</b></div></div>
         <button id="btnStart">DROP IN</button>
       </footer>
     </div>
@@ -437,8 +439,14 @@ const mini = document.getElementById('mini');
 const mctx = mini.getContext('2d');
 
 let VW=0, VH=0, DPR=1, VWw=0, VHw=0, ZOOM=1, touchMode=false;
+// graphics: LOW keeps a weak machine at 60; HIGH is the full look
+const GFX={level:'high',reflect:true,mblur:true};
+try{ Object.assign(GFX,JSON.parse(localStorage.getItem('bw.gfx')||'{}')); }catch(e){}
+const gfxLow=()=>GFX.level==='low', gfxHigh=()=>GFX.level==='high';
+function saveGfx(){ try{ localStorage.setItem('bw.gfx',JSON.stringify(GFX)); }catch(e){} }
 function resize(){
   DPR = Math.min(touchMode?1.5:2, window.devicePixelRatio||1);   // phones: fewer pixels, steadier frame rate
+  if(GFX.level==='low') DPR=1; else if(GFX.level==='medium') DPR=Math.min(DPR,1.5);
   VW = window.innerWidth; VH = window.innerHeight;
   cv.width = lcv.width = Math.floor(VW*DPR);
   cv.height= lcv.height= Math.floor(VH*DPR);
@@ -813,6 +821,7 @@ function boomAt(x,y,own,R,D){ A.nade(x,y); flashLight(x,y,R*2.2,300,'#ffb060'); 
 
 
 function buildSegs(){
+  buildObsGrid();
   segs=[];
   for(const o of obs){
     if(!o.sight) continue;
@@ -836,6 +845,13 @@ function buildSegs(){
     for(let cx=x0;cx<=x1;cx++) for(let cy=y0;cy<=y1;cy++){ const k=cx*4096+cy; let a=segGrid.get(k); if(!a) segGrid.set(k,a=[]); a.push(sg); } }
 }
 const SEGC=480; let segGrid=new Map(), segStamp=0;
+/* the obstacle grid: every solid/bullet-stopping thing binned by 256px cell, so the sim only looks at what's near */
+const OBSC=256; let obsGrid=new Map(), obsStamp=0;
+function buildObsGrid(){ obsGrid=new Map(); for(const o of obs){ if(o.floor) continue; let x0,y0,x1,y1; if(o.s==='r'){ x0=o.x; y0=o.y; x1=o.x+o.w; y1=o.y+o.h; } else { x0=o.x-o.r; y0=o.y-o.r; x1=o.x+o.r; y1=o.y+o.r; }
+    const cx0=Math.floor(x0/OBSC), cx1=Math.floor(x1/OBSC), cy0=Math.floor(y0/OBSC), cy1=Math.floor(y1/OBSC); o._st=0;
+    for(let cx=cx0;cx<=cx1;cx++) for(let cy=cy0;cy<=cy1;cy++){ const k=cx*8192+cy; let a=obsGrid.get(k); if(!a) obsGrid.set(k,a=[]); a.push(o); } } }
+function obsNear(minx,miny,maxx,maxy){ const out=[]; obsStamp++; const x0=Math.floor(minx/OBSC), x1=Math.floor(maxx/OBSC), y0=Math.floor(miny/OBSC), y1=Math.floor(maxy/OBSC);
+  for(let cx=x0;cx<=x1;cx++) for(let cy=y0;cy<=y1;cy++){ const a=obsGrid.get(cx*8192+cy); if(!a) continue; for(const o of a){ if(o._st!==obsStamp){ o._st=obsStamp; out.push(o); } } } return out; }
 function segsIn(minx,miny,maxx,maxy){ // every segment whose cell touches the box, each once
   const out=[]; segStamp++;
   const x0=Math.floor(minx/SEGC), x1=Math.floor(maxx/SEGC), y0=Math.floor(miny/SEGC), y1=Math.floor(maxy/SEGC);
@@ -1613,7 +1629,7 @@ function genWorld(){
 
 /* ───────────────────────── geometry ───────────────────────── */
 function collide(e){
-  for(const o of obs){
+  for(const o of obsNear(e.x-e.r-2,e.y-e.r-2,e.x+e.r+2,e.y+e.r+2)){
     if(!o.solid) continue;
     if(o.s==='r'){
       const nx=clamp(e.x,o.x,o.x+o.w), ny=clamp(e.y,o.y,o.y+o.h);
@@ -1635,7 +1651,8 @@ function collide(e){
   e.x=clamp(e.x,e.r,MAP-e.r); e.y=clamp(e.y,e.r,(UG?(NLAYERS-1)*UG+MAP:MAP)-e.r);
 }
 function inBush(e){
-  for(const o of obs) if(o.kind==='bush' && o.s==='c' && dist2(e.x,e.y,o.x,o.y)<o.r*o.r) return true;
+  if(e._bushT===tick&&e._bush!=null) return e._bush; e._bushT=tick; e._bush=false;   // asked many times a tick by the bots
+  for(const o of obsNear(e.x-60,e.y-60,e.x+60,e.y+60)) if(o.kind==='bush' && o.s==='c' && dist2(e.x,e.y,o.x,o.y)<o.r*o.r) return (e._bush=true);
   return false;
 }
 function raySeg(px,py,dx,dy,s){
@@ -1859,10 +1876,11 @@ function tryReload(a){
   const g=w.d, s=w.s;
   if(s.rounds>=g.mag || a.ammo[g.ammo]<=0) return;
   const onMove=Math.hypot(a.vx,a.vy)>120 ? 1.35 : 1;   // fumbling a magazine at a run
-  a.reloading=true; a.reloadEnd=tNow+g.reload*onMove; a.swing=null;
+  a.reloading=true; a.reloadDur=g.reload*onMove; a.reloadEnd=tNow+a.reloadDur; a.swing=null; a.rackAt=a.reloadEnd-a.reloadDur*.12;
   A.reload(a.x,a.y,'out');
 }
 function stepReload(a){
+  if(a.reloading&&a.rackAt&&tNow>=a.rackAt&&!IS_SERVER){ a.rackAt=0; A.click(a.x,a.y); }
   if(!a.reloading || tNow<a.reloadEnd) return;
   const w=wep(a); if(w.kind!=='gun'){a.reloading=false;return;}
   const g=w.d, s=w.s;
@@ -2499,18 +2517,19 @@ function botThink(b,dt){
     let near=null, nd=1e9; for(const o of [...players,...bots]){ if(o===b||o.dead||o.downed) continue; const d=dist2(b.x,b.y,o.x,o.y); if(d<nd){ nd=d; near=o; } }
     if(near && nd<600*600){ const a=Math.atan2(b.y-near.y,b.x-near.x); const sp=210*speedMul(b); b.vx+=Math.cos(a)*sp*10*dt; b.vy+=Math.sin(a)*sp*10*dt; }
     return; }
-  // target acquisition
+  // target acquisition — staggered, every 4th tick per bot; the reaction delay hides it
   let tgt=null, td=1e9;
-  const cands=[...players,...bots];
-  for(const o of cands){
+  const cands=[...players,...bots]; const scan=((tick+bots.indexOf(b))&3)===0;
+  if(!scan&&ai.target&&!ai.target.dead){ tgt=ai.target; td=dist2(b.x,b.y,tgt.x,tgt.y); }
+  else if(scan) for(const o of cands){
     if(o===b||o.dead) continue;
     const d=dist2(b.x,b.y,o.x,o.y);
     // bots see exactly as far as the player does — a lit weapon is still a beacon, a bush still hides you
     const viewR = o.light?1500:(inBush(o)?260:VIEW_BASE);
     if(d < viewR*viewR && los(b.x,b.y,o.x,o.y) && d<td){ td=d; tgt=o; }
   }
-  if(tgt){ ai.target=tgt; ai.seen=tNow; }
-  else if(tNow-ai.seen>2600) ai.target=null;
+  if(tgt&&scan){ ai.target=tgt; ai.seen=tNow; }
+  else if(tNow-ai.seen>2600){ ai.target=null; tgt=null; }
   const T=ai.target;
   if(!T && UG && tNow>(b.hatchAt||0)+12000 && srand()<dt*.02){ const L=layerOf(b); const h=hatches.reduce((m,h)=>{ if(h.a!==L&&h.b!==L) return m; const q=stairPos(h,L); const d=dist2(b.x,b.y,q.x,q.y); return d<m.d?{h,d}:m; },{h:null,d:1e9}); if(h.h && h.d<700*700){ ai.think=tNow+4000; ai.toHatch=h.h; } }
   if(ai.toHatch && !T){ const h=ai.toHatch; const q=stairPos(h,layerOf(b)); if(dist2(b.x,b.y,q.x,q.y)<48*48){ ai.toHatch=null; useHatch(b,h); return; } const a=Math.atan2(q.y-b.y,q.x-b.x); const sp=210*speedMul(b); b.vx+=Math.cos(a)*sp*10*dt; b.vy+=Math.sin(a)*sp*10*dt; return; }
@@ -2729,7 +2748,7 @@ function updateBullets(dt){
       }
     }
     if(!hit){
-      for(const o of obs){
+      for(const o of obsNear(Math.min(b.x,nx)-4,Math.min(b.y,ny)-4,Math.max(b.x,nx)+4,Math.max(b.y,ny)+4)){
         if(!o.bullet) continue;
         if(o.s==='r'){
           // sweep in sub-steps so a fast round can't skip a thin wall
@@ -2795,7 +2814,7 @@ function updateNades(dt){
     const n=nades[i];
     n.x+=n.vx*dt; n.y+=n.vy*dt;
     const f=Math.pow(.12,dt); n.vx*=f; n.vy*=f;
-    for(const o of obs){ if(!o.bullet)continue;
+    for(const o of obsNear(n.x-12,n.y-12,n.x+12,n.y+12)){ if(!o.bullet)continue;
       if(o.s==='r'){ if(n.x>o.x&&n.x<o.x+o.w&&n.y>o.y&&n.y<o.y+o.h){
         const cx=o.x+o.w/2, cy=o.y+o.h/2;
         if(Math.abs(n.x-cx)/o.w>Math.abs(n.y-cy)/o.h){n.vx*=-.5;n.x+=n.vx*dt*2;} else {n.vy*=-.5;n.y+=n.vy*dt*2;} } }
@@ -3001,14 +3020,20 @@ function drawActor(a, isP){
   if(w.kind==='gun'){
     const g=w.d;
     const recoilOff = clamp((a.fireAt - tNow)/90,0,1)*5;
-    const rl = a.reloading ? Math.sin(tNow/70)*4 : 0;
+    // the reload, in four beats: tilt and drop the mag · hand to the pouch · new mag in · rack it
+    let rl=0, tilt=0, offX=0, offHand=null, magY=null; const relT=a.reloading?clamp(1-(a.reloadEnd-tNow)/Math.max(1,(a.reloadDur||g.reload)),0,1):0;
+    if(a.reloading){ const k=relT; tilt=k<.2?lerp(0,.35,k/.2):k<.8?.35:lerp(.35,0,(k-.8)/.2); rl=Math.sin(k*Math.PI)*3;
+      if(k<.25) magY=lerp(6,34,k/.25); if(k>.25&&k<.7){ const u=(k-.25)/.45; offHand=[lerp(14,-2,Math.sin(u*Math.PI)),lerp(4,14,Math.sin(u*Math.PI))]; }
+      if(k>=.7&&k<.8) magY=lerp(22,6,(k-.7)/.1); if(k>=.85&&k<.95) offX=Math.sin((k-.85)/.1*Math.PI)*4; }
     ctx.strokeStyle='#2b3239'; ctx.lineWidth=7;
-    ctx.beginPath(); ctx.moveTo(4,-7); ctx.lineTo(18-recoilOff, -5+rl); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(4,7); ctx.lineTo(15-recoilOff, 5+rl); ctx.stroke();
-    ctx.save(); ctx.translate(4,0); drawGun(w.id, recoilOff, rl); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(4,-7); ctx.lineTo(18-recoilOff-offX, -5+rl); ctx.stroke();
+    const h2=offHand||[15-recoilOff,5+rl]; ctx.beginPath(); ctx.moveTo(4,7); ctx.lineTo(h2[0],h2[1]); ctx.stroke();
+    ctx.save(); ctx.translate(4,0); ctx.rotate(tilt); drawGun(w.id, recoilOff+offX, rl); ctx.restore();
+    if(magY!=null&&!g.shell){ ctx.save(); ctx.translate(4,0); ctx.rotate(tilt); ctx.fillStyle='#15181c'; ctx.fillRect(10,magY,6,12); ctx.strokeStyle='rgba(8,10,14,.75)'; ctx.lineWidth=1; ctx.strokeRect(10,magY,6,12); ctx.restore(); }   // the magazine on its way out / in
+    if(g.shell&&a.reloading&&relT>.3&&relT<.7){ ctx.fillStyle='#b2352c'; ctx.beginPath(); ctx.arc(h2[0],h2[1]-2,2.5,0,TAU); ctx.fill(); }   // a shell in the hand
     // hands on the grip and the handguard
     ctx.fillStyle='#343b42'; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=1.2;
-    for(const h of [[14-recoilOff,4+rl],[24-recoilOff,-3+rl]]){ ctx.beginPath(); ctx.arc(h[0],h[1],4,0,TAU); ctx.fill(); ctx.stroke(); }
+    for(const h of [[h2[0]-1,h2[1]-1],[24-recoilOff-offX,-3+rl]]){ ctx.beginPath(); ctx.arc(h[0],h[1],4,0,TAU); ctx.fill(); ctx.stroke(); }
   } else {
     const d=w.d;
     let arm=0, wa=0;
@@ -3083,9 +3108,9 @@ function drawActor(a, isP){
 const inClubRect=o=>CLUB.has&&o.x>CLUB.x-CLUB_W/2&&o.x<CLUB.x+CLUB_W/2&&((o.y%UG)+UG)%UG>CLUB.y-CLUB_H/2&&((o.y%UG)+UG)%UG<CLUB.y+CLUB_H/2;
 const BOTTLE_COLS=['#3fbf6a','#e0b44a','#c8352c','#3fbfff','#cfd6da','#a06ad8'];
 const HV=o=>((o.x*73+o.y*131)|0);                                  // a stable per-object number for variation
-function softShadow(x,y,w,h,a){ ctx.fillStyle='rgba(0,0,0,'+(a||.28)+')'; ctx.beginPath(); ctx.roundRect(x+3,y+5,w,h,6); ctx.fill(); }
+function softShadow(x,y,w,h,a){ if(gfxLow()) return; ctx.fillStyle='rgba(0,0,0,'+(a||.28)+')'; ctx.beginPath(); ctx.roundRect(x+3,y+5,w,h,6); ctx.fill(); }
 function innerShade(o,w,a){ // ambient shade where the floor meets its walls
-  const {x,y}=o; const W=o.w,H=o.h; let g;
+  if(gfxLow()) return; const {x,y}=o; const W=o.w,H=o.h; let g;
   g=ctx.createLinearGradient(0,y,0,y+w); g.addColorStop(0,'rgba(0,0,0,'+a+')'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(x,y,W,w);
   g=ctx.createLinearGradient(0,y+H,0,y+H-w); g.addColorStop(0,'rgba(0,0,0,'+a+')'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(x,y+H-w,W,w);
   g=ctx.createLinearGradient(x,0,x+w,0); g.addColorStop(0,'rgba(0,0,0,'+a+')'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(x,y,w,H);
@@ -3405,7 +3430,7 @@ function render(){
                              : (o.x+o.r>L&&o.x-o.r<R&&o.y+o.r>T&&o.y-o.r<B);
   // floors first
   for(const o of obs) if(o.floor && vis(o)) drawObstacle(o);
-  for(const d of decor) if(d.x>L-60&&d.x<R+60&&d.y>T-60&&d.y<B+60) drawDecor(d);
+  if(!gfxLow()) for(const d of decor) if(d.x>L-60&&d.x<R+60&&d.y>T-60&&d.y<B+60) drawDecor(d);
   // decals
   for(const d of decals){ if(d.x<L||d.x>R||d.y<T||d.y>B) continue;
     ctx.fillStyle=d.scorch?'rgba(10,8,6,'+d.a+')':d.glass?'rgba(190,225,240,'+d.a+')':'rgba(96,18,14,'+d.a+')'; ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,TAU); ctx.fill(); }
@@ -3586,7 +3611,7 @@ function render(){
     lctx.fillStyle=g5; lctx.fill(); }
   lctx.restore();
   ctx.setTransform(1,0,0,1,0,0);
-  if(!touchMode) ctx.filter='blur(5px)';
+  if(!touchMode&&!gfxLow()) ctx.filter='blur(5px)';
   ctx.drawImage(lcv,0,0);
   ctx.filter='none';
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -3594,6 +3619,17 @@ function render(){
   // additive warm light
   ctx.save(); ctx.scale(ZOOM,ZOOM); ctx.translate(-cam.x+sx,-cam.y+sy);
   ctx.globalCompositeOperation='lighter';
+  if(GFX.reflect&&!gfxLow()){ // glossy floors: each lamp's light pooled on the floor beneath it, actors mirrored faintly
+    const glossy=o=>o.floor&&(o.tile||o.bar||o.checker||o.casino||(o.club&&o.clubLv!==3)||o.carpet===false);
+    const gl=[]; for(const o of obs) if(glossy(o)&&vis(o)) gl.push(o);
+    if(gl.length){ ctx.save(); ctx.beginPath(); for(const o of gl) ctx.rect(o.x,o.y,o.w,o.h); ctx.clip();
+      for(const lp of lamps){ if(lp.x<LX0||lp.x>LX1||lp.y<LY0||lp.y>LY1) continue; if(lp.grp==='club'&&dark) continue; if(lp.kind==='fire'||lp.kind==='traffic'||lp.kind==='beacon') continue;
+        const rr=lp.r*.55; const g=ctx.createRadialGradient(lp.x,lp.y+8,0,lp.x,lp.y+8,rr); const col=lp.kind==='club'?'255,120,160':lp.kind==='neon'?'255,80,90':lp.kind==='bulb'?'200,240,255':'255,225,170';
+        g.addColorStop(0,'rgba('+col+',.22)'); g.addColorStop(.35,'rgba('+col+',.07)'); g.addColorStop(1,'rgba('+col+',0)'); ctx.fillStyle=g; ctx.save(); ctx.translate(lp.x,lp.y+8); ctx.scale(1,.55); ctx.translate(-lp.x,-lp.y-8); ctx.beginPath(); ctx.arc(lp.x,lp.y+8,rr,0,TAU); ctx.fill(); ctx.restore(); }
+      for(const a of [...players,...bots]){ if(a.dead||a.x<LX0||a.x>LX1||a.y<LY0||a.y>LY1) continue; const g=ctx.createRadialGradient(a.x,a.y+a.r*1.4,0,a.x,a.y+a.r*1.4,a.r*1.6); g.addColorStop(0,'rgba(255,240,220,.10)'); g.addColorStop(1,'rgba(255,240,220,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(a.x,a.y+a.r*1.4,a.r*1.4,a.r*.7,0,0,TAU); ctx.fill(); }
+      // a sheen that slides across the gloss
+      const sh=ctx.createLinearGradient(cam.x+((tNow/40)%(VWw+600))-300,cam.y,cam.x+((tNow/40)%(VWw+600))-100,cam.y+VHw); sh.addColorStop(0,'rgba(255,255,255,0)'); sh.addColorStop(.5,'rgba(255,255,255,.035)'); sh.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=sh; ctx.fillRect(cam.x-sx,cam.y-sy,VWw+80,VHw+80);
+      ctx.restore(); } }
   for(const h of holes){ if(h.x<LX0||h.x>LX1||h.y<LY0||h.y>LY1) continue; const g=ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,9); g.addColorStop(0,'rgba(255,236,190,.9)'); g.addColorStop(.3,'rgba(255,220,160,.35)'); g.addColorStop(1,'rgba(255,200,120,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(h.x,h.y,9,0,TAU); ctx.fill(); }
   for(const lp of lamps){ if(lp.x<LX0||lp.x>LX1||lp.y<LY0||lp.y>LY1) continue; if(lp.grp==='club'&&dark) continue;
     if(lp.kind==='beacon'){ if(Math.sin(tNow/450)<0) continue; const g=ctx.createRadialGradient(lp.x,lp.y,0,lp.x,lp.y,lp.r*.8); g.addColorStop(0,'rgba(255,60,50,.34)'); g.addColorStop(1,'rgba(255,60,50,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(lp.x,lp.y,lp.r*.8,0,TAU); ctx.fill(); continue; }
@@ -3685,6 +3721,14 @@ function render(){
   if(!GHOST) drawMini();
 }
 let GHOST=false, ghostCv=null;
+// motion blur: whip the mouse round and the last frame smears behind the new one
+const MB={cv:null,ang:0,t:0,amt:0};
+function motionBlur(){ if(!GFX.mblur||gfxLow()||!P||P.dead) { MB.amt=0; return; }
+  const now=performance.now(); const dt=Math.max(1,now-MB.t)/1000; MB.t=now; const spin=Math.abs(adiff(P.ang,MB.ang))/dt; MB.ang=P.ang;
+  const want=clamp((spin-5)/16,0,.6); MB.amt=Math.max(want,MB.amt*.6);
+  if(!MB.cv){ MB.cv=document.createElement('canvas'); } if(MB.cv.width!==cv.width||MB.cv.height!==cv.height){ MB.cv.width=cv.width; MB.cv.height=cv.height; MB.has=false; }
+  if(MB.amt>.03&&MB.has){ ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=MB.amt; ctx.drawImage(MB.cv,0,0); ctx.globalAlpha=MB.amt*.5; const s=1.012; ctx.setTransform(s,0,0,s,cv.width*(1-s)/2,cv.height*(1-s)/2); ctx.drawImage(MB.cv,0,0); ctx.globalAlpha=1; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  if(MB.amt>.03||spin>2){ const g=MB.cv.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); g.drawImage(cv,0,0); MB.has=true; } else MB.has=false; }
 // on a staircase both floors exist at once: the one you're heading for is drawn over the one you're leaving,
 // as strong as how far up (or down) you've walked, rising or settling into place
 function renderStairs(){
@@ -3904,14 +3948,14 @@ function frame(ts){
   requestAnimationFrame(frame);
   const rdt = Math.min(.1,(ts-lastT)/1000||0); lastT=ts;
   if(!running){ if($('start').style.display!=='none'){ try{ drawMenuBg(rdt); }catch(e){ showErr(e); } } return; }
-  if(IO.on){ ioFrame(rdt); try{ renderStairs(); hud(); }catch(e){ showErr(e); } return; }
+  if(IO.on){ ioFrame(rdt); try{ renderStairs(); motionBlur(); hud(); }catch(e){ showErr(e); } return; }
   acc+=rdt; let n=0;
   while(acc>=STEP && n<5){
     if(NET.on && !netReady()) break;      // lockstep: the other side's input for this tick isn't here yet
     stepSim(); acc-=STEP; n++;
   }
   if(acc>STEP*5) acc=STEP*5;
-  try{ renderStairs(); hud(); }catch(e){ showErr(e); }
+  try{ renderStairs(); motionBlur(); hud(); }catch(e){ showErr(e); }
   darkWatch();
 }
 // a black screen with the HUD still up means the world drew nothing where you are: say why, and get you out of it
@@ -4383,6 +4427,10 @@ function buildLobby(){
     tap(el,()=>{ BOTN=+el.dataset.bots;
       document.querySelectorAll('#rowBots .opts b').forEach(o=>o.classList.remove('sel'));
       el.classList.add('sel'); A.click(); });
+  for(const el of document.querySelectorAll('#gfxOpts b[data-gfx]')){ el.classList.toggle('sel',el.dataset.gfx===GFX.level);
+    tap(el,()=>{ GFX.level=el.dataset.gfx; saveGfx(); resize(); document.querySelectorAll('#gfxOpts b[data-gfx]').forEach(o=>o.classList.toggle('sel',o.dataset.gfx===GFX.level)); A.click(); }); }
+  for(const el of document.querySelectorAll('#gfxOpts b[data-gfxt]')){ el.classList.toggle('sel',!!GFX[el.dataset.gfxt]);
+    tap(el,()=>{ GFX[el.dataset.gfxt]=!GFX[el.dataset.gfxt]; saveGfx(); el.classList.toggle('sel',!!GFX[el.dataset.gfxt]); A.click(); }); }
   for(const el of document.querySelectorAll('#volOpts b'))
     tap(el,()=>{ A.on(); A.setVol(+el.dataset.vol);
       document.querySelectorAll('#volOpts b').forEach(o=>o.classList.remove('sel'));
