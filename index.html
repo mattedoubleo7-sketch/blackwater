@@ -867,9 +867,10 @@ function genUnderground(G){ const {free,N}=G; const M=MAP; UG=M+600;
     if(!edge){ i++; continue; } let e=i; while(e<W&&!at(e,j)&&(at(e-1,j)||at(e+1,j)||at(e,j-1)||at(e,j+1)||at(e-1,j-1)||at(e+1,j-1)||at(e-1,j+1)||at(e+1,j+1))) e++;
     addRect(i*C,UG+j*C,(e-i)*C,C,'rock'); i=e; } }
   // a sewage channel down the middle of every tunnel, drips of light, loot in the rooms
+  const hz=(i,j)=>at(i,j)===1&&at(i-1,j)===1&&at(i+1,j)===1, vt=(i,j)=>at(i,j)===1&&at(i,j-1)===1&&at(i,j+1)===1;
+  for(let j=0;j<W;j++){ let i=0; while(i<W){ if(!hz(i,j)){ i++; continue; } let e=i; while(e<W&&hz(e,j)) e++; addRect(i*C,UG+j*C+C*.35,(e-i)*C,C*.3,'floor',{sight:false,solid:false,bullet:false,floor:true,sewage:true}); i=e; } }
+  for(let i=0;i<W;i++){ let j=0; while(j<W){ if(!vt(i,j)||hz(i,j)){ j++; continue; } let e=j; while(e<W&&vt(i,e)&&!hz(i,e)) e++; addRect(i*C+C*.35,UG+j*C,C*.3,(e-j)*C,'floor',{sight:false,solid:false,bullet:false,floor:true,sewage:true}); j=e; } }
   for(let j=0;j<W;j++) for(let i=0;i<W;i++){ if(at(i,j)!==1) continue;
-    if(at(i-1,j)===1&&at(i+1,j)===1) addRect(i*C,UG+j*C+C*.35,C,C*.3,'floor',{sight:false,solid:false,bullet:false,floor:true,sewage:true});
-    else if(at(i,j-1)===1&&at(i,j+1)===1) addRect(i*C+C*.35,UG+j*C,C*.3,C,'floor',{sight:false,solid:false,bullet:false,floor:true,sewage:true});
     if(srand()<.045) lamps.push({x:i*C+C/2,y:UG+j*C+C/2,kind:'bulb',r:190,ph:srnd(TAU)});
     if(srand()<.03 && MODE!=='kit') spawnLoot(i*C+C/2+srnd(20,-20),UG+j*C+C/2+srnd(20,-20),lootRoll(.5)); }
   for(const r of rooms){ const cx=(r.i+r.w/2)*C, cy=UG+(r.j+r.h/2)*C; lamps.push({x:cx,y:cy,kind:'lamp',r:260,ph:srnd(TAU)});
@@ -2114,6 +2115,7 @@ function updateBullets(dt){
         if(!o.bullet) continue;
         if(o.s==='r'){
           // sweep in sub-steps so a fast round can't skip a thin wall
+          if(Math.max(b.x,nx)<o.x||Math.min(b.x,nx)>o.x+o.w||Math.max(b.y,ny)<o.y||Math.min(b.y,ny)>o.y+o.h) continue;
           let inR=false; const sub=Math.ceil(step/10); for(let k=1;k<=sub;k++){ const qx=b.x+b.dx*step*k/sub, qy=b.y+b.dy*step*k/sub; if(qx>o.x&&qx<o.x+o.w&&qy>o.y&&qy<o.y+o.h){ inR=true; break; } }
           if(inR){
             hit=true;
