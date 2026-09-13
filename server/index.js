@@ -28,7 +28,25 @@ for(const k of Object.keys(SRV.A)){
 }
 
 const clients = new Map();   // ws → {a, known:Set(lootIds), name}
-const server = http.createServer((req,res)=>{ res.setHeader('Access-Control-Allow-Origin','*'); res.end(JSON.stringify({ok:true, online:clients.size, bots:BOTS, max:MAX})); });
+// 1v1 room codes: the page parks a WebRTC offer under a 4-letter code, the friend answers it. In memory, 10 min.
+const rooms = new Map();
+function sig(req, res, u){
+  const op = u.searchParams.get('op'), room = (u.searchParams.get('room')||'').toUpperCase().slice(0,6);
+  const now = Date.now(); for(const [k,v] of rooms) if(now - v.t > 600000) rooms.delete(k);
+  const send = o => { res.setHeader('Content-Type','application/json'); res.end(JSON.stringify(o)); };
+  if(op==='ping') return send({ok:true});
+  if(op==='get'){ const r = rooms.get(room); return send(r ? {offer:r.offer, answer:r.answer||null} : {}); }
+  let body=''; req.on('data', d => { body += d; if(body.length > 200000) req.destroy(); });
+  req.on('end', () => { let j={}; try{ j = JSON.parse(body||'{}'); }catch(e){}
+    if(op==='set' && j.offer){ rooms.set(room, {offer:String(j.offer), answer:null, t:now}); return send({ok:true}); }
+    if(op==='answer' && j.answer){ const r = rooms.get(room); if(!r) return send({ok:false}); r.answer = String(j.answer); return send({ok:true}); }
+    if(op==='del'){ rooms.delete(room); return send({ok:true}); }
+    send({ok:false}); });
+}
+const server = http.createServer((req,res)=>{ res.setHeader('Access-Control-Allow-Origin','*'); res.setHeader('Access-Control-Allow-Headers','*');
+  if(req.method==='OPTIONS'){ res.end(); return; }
+  const u = new URL(req.url, 'http://x'); if(u.pathname==='/sig') return sig(req, res, u);
+  res.end(JSON.stringify({ok:true, online:clients.size, bots:BOTS, max:MAX})); });
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', ws => {

@@ -3645,23 +3645,26 @@ function wireChannel(ch){
 function myName(){ return ($('netName').value.trim()||'player').slice(0,12); }
 function netSend(o){ if(NET.ch&&NET.ch.readyState==='open') NET.ch.send(JSON.stringify(o)); }
 // ── signaling: room codes via signal.php, else pasted codes ──
+// room codes live on signal.php next to the page if there is one, else on the public server's /sig
 async function sigProbe(){
-  if(location.protocol==='file:') return null;
-  try{ const r=await fetch('signal.php?op=ping',{cache:'no-store'}); if(!r.ok) return null; const j=await r.json(); return j.ok?'php':null; }catch(e){ return null; }
+  const cands=[]; if(location.protocol!=='file:') cands.push('signal.php');
+  if(IO.url) cands.push(IO.url.replace(/^ws/,'http').replace(/[/]$/,'')+'/sig');
+  for(const base of cands){ try{ const r=await fetch(base+'?op=ping',{cache:'no-store'}); if(!r.ok) continue; const j=await r.json(); if(j.ok){ NET.sigBase=base; return 'php'; } }catch(e){} }
+  return null;
 }
 function roomCodeGen(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; return c; }
 async function hostRoom(){
-  NET.host=true; NET.me=0;
+  NET.host=true; NET.me=0; if(!NET.sig) NET.sig=await sigProbe();
   const pc=newPc(); wireChannel(pc.createDataChannel('bw',{ordered:true})); $('netDisc').style.display='block';
   await pc.setLocalDescription(await pc.createOffer()); await gathered(pc);
   const code=packSdp(pc.localDescription.sdp);
   if(NET.sig==='php'){
     NET.room=roomCodeGen(); $('roomCode').textContent=NET.room;
-    const r=await fetch('signal.php?op=set&room='+NET.room,{method:'POST',body:JSON.stringify({offer:code})});
+    const r=await fetch(NET.sigBase+'?op=set&room='+NET.room,{method:'POST',body:JSON.stringify({offer:code})});
     if(!r.ok){ netStatus('room server refused — use the paste codes instead','bad'); $('hostManual').style.display='block'; $('hostOffer').value=code; return; }
     netStatus('room '+NET.room+' open — waiting for your friend','');
-    NET.poll=setInterval(async()=>{ try{ const j=await (await fetch('signal.php?op=get&room='+NET.room,{cache:'no-store'})).json();
-      if(j.answer){ clearInterval(NET.poll); await pc.setRemoteDescription({type:'answer',sdp:unpackSdp(j.answer,false)}); netStatus('connecting…',''); fetch('signal.php?op=del&room='+NET.room,{method:'POST'}); } }catch(e){} },1500);
+    NET.poll=setInterval(async()=>{ try{ const j=await (await fetch(NET.sigBase+'?op=get&room='+NET.room,{cache:'no-store'})).json();
+      if(j.answer){ clearInterval(NET.poll); await pc.setRemoteDescription({type:'answer',sdp:unpackSdp(j.answer,false)}); netStatus('connecting…',''); fetch(NET.sigBase+'?op=del&room='+NET.room,{method:'POST'}); } }catch(e){} },1500);
   } else {
     $('hostManual').style.display='block'; $('hostOffer').value=code; $('hostOffer').select();
     try{ await navigator.clipboard.writeText(code); netStatus('code copied — send it to your friend, then paste their reply',''); }catch(e){ netStatus('send the code to your friend, then paste their reply',''); }
@@ -3679,15 +3682,15 @@ async function joinWith(offerCode){
   return packSdp(pc.localDescription.sdp);
 }
 async function joinRoom(){
-  const code=$('roomJoin').value.trim().toUpperCase(); if(code.length<3) return;
+  const code=$('roomJoin').value.trim().toUpperCase(); if(code.length<3) return; if(!NET.sig) NET.sig=await sigProbe();
   if(NET.sig!=='php'){ $('joinManual').style.display='block'; netStatus('no room server here — paste the host\'s code instead',''); return; }
   netStatus('looking for room '+code+'…','');
   try{
-    const j=await (await fetch('signal.php?op=get&room='+code,{cache:'no-store'})).json();
+    const j=await (await fetch(NET.sigBase+'?op=get&room='+code,{cache:'no-store'})).json();
     if(!j.offer){ netStatus('no room called '+code+' — check the code','bad'); return; }
     if(j.answer){ netStatus('someone already joined that room','bad'); return; }
     const ans=await joinWith(j.offer);
-    const r=await fetch('signal.php?op=answer&room='+code,{method:'POST',body:JSON.stringify({answer:ans})});
+    const r=await fetch(NET.sigBase+'?op=answer&room='+code,{method:'POST',body:JSON.stringify({answer:ans})});
     if(!r.ok){ netStatus('room was taken a moment ago','bad'); return; }
     netStatus('connecting…','');
   }catch(e){ netStatus('could not reach the room server','bad'); }
