@@ -452,7 +452,7 @@ const mini = document.getElementById('mini');
 const mctx = mini.getContext('2d');
 
 let VW=0, VH=0, DPR=1, VWw=0, VHw=0, ZOOM=1, touchMode=false;
-const BASE_ZOOM=1.7, SIGHT_STEP=.885;   // you start close in; each SIGHT level pulls the camera back (×0.885)
+const BASE_ZOOM=2.0, SIGHT_STEP=.862;   // you start close in; each SIGHT level pulls the camera back (×0.885)
 const ROMAN=['','I','II','III','IV','V','VI','VII','VIII'];
 const PERK_MAX={hh:3,si:6}; let SIGHT_LV=0;   // the local player's SIGHT level, mirrored here because resize() runs before P exists
 // graphics: LOW keeps a weak machine at 60; HIGH is the full look
@@ -468,7 +468,7 @@ function resize(){
   cv.height= lcv.height= Math.floor(VH*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   lctx.setTransform(DPR,0,0,DPR,0,0);
-  ZOOM = (touchMode ? clamp(VW/780,.5,.95)*1.3 : BASE_ZOOM); ZOOM*=Math.pow(SIGHT_STEP,SIGHT_LV);
+  ZOOM = (touchMode ? clamp(VW/780,.5,.95)*1.5 : BASE_ZOOM); ZOOM*=Math.pow(SIGHT_STEP,SIGHT_LV);
   VWw = VW/ZOOM; VHw = VH/ZOOM;
   try{ if(P) perkZoom(); }catch(e){}   // P doesn't exist yet on the first resize
 }
@@ -843,12 +843,12 @@ function buildSegs(){
     if(!o.sight) continue;
     if(o.s==='r'){
       const {x,y,w,h}=o;
-      segs.push({x1:x,y1:y,x2:x+w,y2:y},{x1:x+w,y1:y,x2:x+w,y2:y+h},
-                {x1:x+w,y1:y+h,x2:x,y2:y+h},{x1:x,y1:y+h,x2:x,y2:y});
+      segs.push({o,x1:x,y1:y,x2:x+w,y2:y},{o,x1:x+w,y1:y,x2:x+w,y2:y+h},
+                {o,x1:x+w,y1:y+h,x2:x,y2:y+h},{o,x1:x,y1:y+h,x2:x,y2:y});
     } else {
       const n=7; for(let i=0;i<n;i++){
         const a1=i/n*TAU,a2=(i+1)/n*TAU;
-        segs.push({x1:o.x+Math.cos(a1)*o.r,y1:o.y+Math.sin(a1)*o.r,
+        segs.push({o,x1:o.x+Math.cos(a1)*o.r,y1:o.y+Math.sin(a1)*o.r,
                    x2:o.x+Math.cos(a2)*o.r,y2:o.y+Math.sin(a2)*o.r});
       }
     }
@@ -861,6 +861,15 @@ function buildSegs(){
     for(let cx=x0;cx<=x1;cx++) for(let cy=y0;cy<=y1;cy++){ const k=cx*4096+cy; let a=segGrid.get(k); if(!a) segGrid.set(k,a=[]); a.push(sg); } }
 }
 const SEGC=480; let segGrid=new Map(), segStamp=0;
+/* incremental edits: one obstacle in or out of the sight and obstacle grids, without rebuilding the world's */
+function obsBox(o){ return o.s==='r'?[o.x,o.y,o.x+o.w,o.y+o.h]:[o.x-o.r,o.y-o.r,o.x+o.r,o.y+o.r]; }
+function obsForget(o){ const [x0,y0,x1,y1]=obsBox(o);
+  for(let cx=Math.floor(x0/SEGC);cx<=Math.floor(x1/SEGC);cx++) for(let cy=Math.floor(y0/SEGC);cy<=Math.floor(y1/SEGC);cy++){ const a=segGrid.get(cx*4096+cy); if(a) for(let i=a.length-1;i>=0;i--) if(a[i].o===o) a.splice(i,1); }
+  for(let cx=Math.floor(x0/OBSC);cx<=Math.floor(x1/OBSC);cx++) for(let cy=Math.floor(y0/OBSC);cy<=Math.floor(y1/OBSC);cy++){ const a=obsGrid.get(cx*8192+cy); if(a){ const i=a.indexOf(o); if(i>=0) a.splice(i,1); } } }
+function obsLearn(o){ if(o.floor) return; const [x0,y0,x1,y1]=obsBox(o); o._st=0;
+  for(let cx=Math.floor(x0/OBSC);cx<=Math.floor(x1/OBSC);cx++) for(let cy=Math.floor(y0/OBSC);cy<=Math.floor(y1/OBSC);cy++){ const k=cx*8192+cy; let a=obsGrid.get(k); if(!a) obsGrid.set(k,a=[]); a.push(o); }
+  if(!o.sight) return; const sg=[]; if(o.s==='r'){ const {x,y,w,h}=o; sg.push({o,x1:x,y1:y,x2:x+w,y2:y},{o,x1:x+w,y1:y,x2:x+w,y2:y+h},{o,x1:x+w,y1:y+h,x2:x,y2:y+h},{o,x1:x,y1:y+h,x2:x,y2:y}); } else { const n=7; for(let i=0;i<n;i++){ const a1=i/n*TAU,a2=(i+1)/n*TAU; sg.push({o,x1:o.x+Math.cos(a1)*o.r,y1:o.y+Math.sin(a1)*o.r,x2:o.x+Math.cos(a2)*o.r,y2:o.y+Math.sin(a2)*o.r}); } }
+  for(const g of sg){ g.st=0; for(let cx=Math.floor(Math.min(g.x1,g.x2)/SEGC);cx<=Math.floor(Math.max(g.x1,g.x2)/SEGC);cx++) for(let cy=Math.floor(Math.min(g.y1,g.y2)/SEGC);cy<=Math.floor(Math.max(g.y1,g.y2)/SEGC);cy++){ const k=cx*4096+cy; let a=segGrid.get(k); if(!a) segGrid.set(k,a=[]); a.push(g); } } }
 /* the obstacle grid: every solid/bullet-stopping thing binned by 256px cell, so the sim only looks at what's near */
 const OBSC=256; let obsGrid=new Map(), obsStamp=0;
 function buildObsGrid(){ obsGrid=new Map(); for(const o of obs){ if(o.floor) continue; let x0,y0,x1,y1; if(o.s==='r'){ x0=o.x; y0=o.y; x1=o.x+o.w; y1=o.y+o.h; } else { x0=o.x-o.r; y0=o.y-o.r; x1=o.x+o.r; y1=o.y+o.r; }
@@ -1765,7 +1774,7 @@ function genWorld(){
   const free=(x,y,r)=>!overlaps(x,y,r);
   const N=n=>Math.round(n*sc);
   const G={free,N,sc};
-  BANK.has=false; holes.length=0; UG=MODE==='kit'?0:MAP+600; hatches=[]; HOUSES.length=0; props=[]; RADAR.until=0;
+  BANK.has=false; holes.length=0; UG=MODE==='kit'?0:MAP+600; hatches=[]; HOUSES.length=0; MINI.layer=-1; props=[]; RADAR.until=0;
   const gen = MODE==='kit' ? genStrip : ({strip:genStrip,hollow:genHollow,docks:genDocks,bunker:genBunker,depot:genDepot,suburbs:genSuburbs,airfield:genAirfield})[MAPID]||genStrip;
   gen(G);
   CLUB.has=false;
@@ -2051,7 +2060,7 @@ function stepReload(a){
 const HEAD_R = 7.5;                 // the small hitbox you have to actually hit
 const PERKS={hh:{name:'HEADHUNTER',desc:['','head hitbox +35%','head hitbox +70%','head hitbox doubled, head mode recharges faster']},si:{name:'SIGHT',desc:['','camera pulls back, see 12% further','camera pulls back, see 24% further','camera pulls back, see 36% further','camera pulls back, see 48% further','camera pulls back, see 60% further','camera all the way out, see 72% further']}};
 const headRadius=a=>HEAD_R*(1+.35*((a&&a.perks&&a.perks.hh)||0));
-function perkZoom(){ const si=(P&&P.perks&&P.perks.si)||0; SIGHT_LV=si; const base=touchMode?clamp(VW/780,.5,.95)*1.3:BASE_ZOOM; const z=base*Math.pow(SIGHT_STEP,si); if(Math.abs(z-ZOOM)>.001){ ZOOM=z; VWw=VW/ZOOM; VHw=VH/ZOOM; } }
+function perkZoom(){ const si=(P&&P.perks&&P.perks.si)||0; SIGHT_LV=si; const base=touchMode?clamp(VW/780,.5,.95)*1.5:BASE_ZOOM; const z=base*Math.pow(SIGHT_STEP,si); if(Math.abs(z-ZOOM)>.001){ ZOOM=z; VWw=VW/ZOOM; VHw=VH/ZOOM; } }
 const HS_CD  = 3000;                // 3s between attempts
 const HS_DMG = 220;                 // lethal on a bare head
 const HELM_HEAD = [0,.30,.41,.50,.58,.65,.72,.78,.84,.90,.96]; // vs a head round
@@ -2938,10 +2947,10 @@ function updateBullets(dt){
 }
 function breakCrate(o,own){
   const i=obs.indexOf(o); if(i<0)return;
-  obs.splice(i,1); buildSegs();
+  obs.splice(i,1); obsForget(o);
   if(o.glass){ A.glass(o.x+o.w/2,o.y+o.h/2); for(let k=0;k<14;k++) parts.push({x:o.x+srnd(o.w),y:o.y+srnd(o.h),vx:rnd(260,-260),vy:rnd(260,-260),life:.6,max:.6,c:k%3?'#cfe6f2':'#ffffff',s:rnd(3.5,1.5)}); decals.push({x:o.x+o.w/2,y:o.y+o.h/2,r:14,a:.18,glass:true}); return; }
   if(o.boom){ const cx=o.x+o.w/2, cy=o.y+o.h/2; boomAt(cx,cy,own||null,o.kind==='car'?230:200,o.kind==='car'?130:120); lamps.push({x:cx,y:cy,kind:'fire',r:o.kind==='car'?300:250,ph:srnd(TAU)});
-    if(o.kind==='car') addRect(o.x,o.y,o.w,o.h,'wreck',{sight:false,bullet:true,col:'#1a1a1c'}); else addCirc(cx,cy,12,'rock'); buildSegs(); return; }
+    obsLearn(o.kind==='car' ? addRect(o.x,o.y,o.w,o.h,'wreck',{sight:false,bullet:true,col:'#1a1a1c'}) : addCirc(cx,cy,12,'rock')); return; }
   if(o.kind==='wwall'){ // splinters along the whole wall
     const n=Math.ceil(Math.max(o.w,o.h)/22); for(let k=0;k<n*2;k++) parts.push({x:o.x+srnd(o.w),y:o.y+srnd(o.h),vx:rnd(320,-320),vy:rnd(320,-320),life:.7,max:.7,c:k%2?'#6e4b2a':'#a8845a',s:rnd(5,2)});
     A.armor(o.x+o.w/2,o.y+o.h/2); return; }
@@ -3301,6 +3310,10 @@ function tex(kind,col){ const key=kind+'|'+(col||''); if(TEX[key]) return TEX[ke
   else if(kind==='carpet'){ const base=hex(col||'#7a1522'); g.fillStyle=rgb(base,1); g.fillRect(0,0,S,S); speckle(5000,.35,.75,1.25,base); for(let i=0;i<3;i++) stain(R()*S,R()*S,12+R()*16,'rgba(0,0,0,.18)'); }
   else if(kind==='grass'){ const base=hex(col||'#3a4a2c'); g.fillStyle=rgb(base,1); g.fillRect(0,0,S,S); speckle(2600,.45,.7,1.35,base); for(let i=0;i<90;i++){ g.strokeStyle=rgb(base,1.15+R()*.4,.5); g.lineWidth=1; const x=R()*S,y=R()*S; g.beginPath(); g.moveTo(x,y); g.lineTo(x+(R()-.5)*3,y-3-R()*4); g.stroke(); } for(let i=0;i<3;i++) stain(R()*S,R()*S,18+R()*26,rgb(base,.7,.5)); }
   const p=ctx.createPattern(c,'repeat'); TEX[key]=p; return p; }
+function warmTex(){ if(TEX._warm) return; TEX._warm=true; const day=isDay();
+  for(const c of (day?['#8a6a48','#7a5a3c','#9a7048','#6a6048','#5a4a38','#4a3a2a']:['#5a4330','#4a3628','#6a4a30','#3f3a30','#3a3028','#4a3a2a'])) tex('wood',c);
+  for(const c of (day?['#4a4f58','#4c5058']:['#2a2d33','#1e2126','#2c3038','#33363c'])) tex('concrete',c);
+  tex('garage',day?'#4c5058':'#1e2126'); tex('checker'); tex('tile'); tex('carpet','#7a1522'); tex('asphalt',day?'#3a3e45':'#23262b'); }
 function innerShade(o,w,a){ // ambient shade where the floor meets its walls
   if(gfxLow()) return; const {x,y}=o; const W=o.w,H=o.h; let g;
   g=ctx.createLinearGradient(0,y,0,y+w); g.addColorStop(0,'rgba(0,0,0,'+a+')'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(x,y,W,w);
@@ -3617,6 +3630,7 @@ function render(){
   const leadX = touchMode?0:clamp((mouse.x-VW/2)*.16,-110,110);
   const leadY = touchMode?0:clamp((mouse.y-VH/2)*.16,-110,110);
   const tx = P.x - VWw/2 + leadX, ty = P.y - VHw/2 + leadY;
+  if(Math.abs(ty-cam.y)>MAP*.6||Math.abs(tx-cam.x)>MAP*.6){ cam.x=tx; cam.y=ty; }   // a layer change: cut, don't pan across the world
   if(!GHOST){ cam.x = lerp(cam.x, tx, .16); cam.y = lerp(cam.y, ty, .16); }
   let sx=0, sy=0;
   if(shake>.2){ sx=rnd(shake,-shake); sy=rnd(shake,-shake); if(!GHOST) shake*=.86; }
@@ -3990,15 +4004,18 @@ function drawClubFx(sx,sy){
   if(layerOf(P)===3){ // roof: sky and city glow instead of the beams
     ctx.globalCompositeOperation='screen'; const sky=ctx.createLinearGradient(0,0,0,VH); sky.addColorStop(0,'rgba(40,60,110,.16)'); sky.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=sky; ctx.fillRect(0,0,VW,VH); ctx.globalCompositeOperation='source-over'; }
 }
+const MINI={cv:null,layer:-1,obsN:-1};
+function drawMiniStatic(PLm){ const S=132, k=S/MAP, yo=PLm*UG; if(!MINI.cv){ MINI.cv=document.createElement('canvas'); MINI.cv.width=MINI.cv.height=S; } const m=MINI.cv.getContext('2d');
+  m.fillStyle='#0b0f14'; m.fillRect(0,0,S,S);
+  for(const o of obs){ if(!o.floor) continue; if(layerOf(o)!==PLm||o.sewage) continue; m.fillStyle=o.ug===2?'#26303a':o.ug===1?'#1b2a2a':o.indoor?'#141a22':o.road?'#2a2e35':'#1a2430'; m.fillRect(o.x*k,(o.y-yo)*k,o.w*k,o.h*k); }
+  for(const h of hatches){ if(h.a!==PLm&&h.b!==PLm) continue; const q=stairPos(h,PLm); m.fillStyle=h.kind==='hatch'?'#8fd0c0':'#e0b44a'; m.beginPath(); m.arc(q.x*k,(q.y-yo)*k,1.8,0,TAU); m.fill(); }
+  for(const o of obs){ if(o.floor||o.s!=='r') continue; if(layerOf(o)!==PLm) continue; if(o.kind==='rock'){ m.fillStyle='#2c333a'; m.fillRect(o.x*k,(o.y-yo)*k,Math.max(1,o.w*k),Math.max(1,o.h*k)); continue; } if(o.kind==='water'){ m.fillStyle='#16303c'; m.fillRect(o.x*k,o.y*k,o.w*k,o.h*k); } else if(o.kind==='wall'||o.kind==='wwall'||o.kind==='shelf'||o.kind==='container'){ m.fillStyle=o.kind==='wall'?'#4a5260':o.kind==='wwall'?'#5a4530':'#38404a'; m.fillRect(o.x*k,(o.y-yo)*k,Math.max(1,o.w*k),Math.max(1,o.h*k)); } }
+  MINI.layer=PLm; MINI.obsN=obs.length; }
 function drawMini(){
   const S=132, k=S/MAP;
-  mctx.clearRect(0,0,S,S);
-  mctx.fillStyle='#0b0f14'; mctx.fillRect(0,0,S,S);
-  const PLm=layerOf(P), ugm=PLm>0, yo=PLm*UG;
-  if(ugm){ mctx.fillStyle='#0b0f14'; mctx.fillRect(0,0,S,S); }
-  for(const o of obs){ if(!o.floor) continue; if(layerOf(o)!==PLm||o.sewage) continue; mctx.fillStyle=o.ug===2?'#26303a':o.ug===1?'#1b2a2a':o.indoor?'#141a22':o.road?'#2a2e35':'#1a2430'; mctx.fillRect(o.x*k,(o.y-yo)*k,o.w*k,o.h*k); }
-  for(const h of hatches){ if(h.a!==PLm&&h.b!==PLm) continue; const q=stairPos(h,PLm); mctx.fillStyle=h.kind==='hatch'?'#8fd0c0':'#e0b44a'; mctx.beginPath(); mctx.arc(q.x*k,(q.y-yo)*k,1.8,0,TAU); mctx.fill(); }
-  for(const o of obs){ if(o.floor||o.s!=='r') continue; if(layerOf(o)!==PLm) continue; if(o.kind==='rock'){ mctx.fillStyle='#2c333a'; mctx.fillRect(o.x*k,(o.y-yo)*k,Math.max(1,o.w*k),Math.max(1,o.h*k)); continue; } if(o.kind==='water'){ mctx.fillStyle='#16303c'; mctx.fillRect(o.x*k,o.y*k,o.w*k,o.h*k); } else if(o.kind==='wall'||o.kind==='wwall'||o.kind==='shelf'||o.kind==='container'){ mctx.fillStyle=o.kind==='wall'?'#4a5260':o.kind==='wwall'?'#5a4530':'#38404a'; mctx.fillRect(o.x*k,(o.y-yo)*k,Math.max(1,o.w*k),Math.max(1,o.h*k)); } }
+  const PLm=layerOf(P), yo=PLm*UG;
+  if(MINI.layer!==PLm||MINI.obsN!==obs.length||!MINI.cv) drawMiniStatic(PLm);   // redrawn only when the layer changes or something breaks
+  mctx.clearRect(0,0,S,S); mctx.drawImage(MINI.cv,0,0);
   if(MODE!=='kit'){
     mctx.strokeStyle='rgba(220,90,70,.9)'; mctx.lineWidth=1.2;
     mctx.beginPath(); mctx.arc(zone.x*k,zone.y*k,zone.r*k,0,TAU); mctx.stroke();   // same ring on both levels
@@ -4168,13 +4185,15 @@ function frame(ts){
     stepSim(); acc-=STEP; n++;
   }
   if(acc>STEP*5) acc=STEP*5;
+  if(!TEX._warm) try{ warmTex(); }catch(e){}
   try{ renderStairs(); motionBlur(); hud(); }catch(e){ showErr(e); }
   darkWatch();
 }
 // a black screen with the HUD still up means the world drew nothing where you are: say why, and get you out of it
 const DARK={t0:0,n:0,last:0};
-function darkWatch(){ if(!running||!P||P.dead||tNow-DARK.last<1000) return; DARK.last=tNow;
-  let lit=0; try{ const w=Math.floor(160*DPR), h=Math.floor(160*DPR); const d=ctx.getImageData(Math.floor(cv.width/2-w/2),Math.floor(cv.height/2-h/2),w,h).data; for(let i=0;i<d.length;i+=4*37) if(d[i]+d[i+1]+d[i+2]>60) lit++; }catch(e){ return; }
+function darkWatch(){ if(!running||!P||P.dead||tNow-DARK.last<2500) return; DARK.last=tNow;
+  // "lit" = the numbers are sane and there is world under the camera (surface ground, or a floor on this layer in view)
+  let lit=0; if([P.x,P.y,cam.x,cam.y,ZOOM,shake].every(Number.isFinite)){ if(layerOf(P)===0) lit=9; else { const L=layerOf(P); for(const o of obsNear(cam.x,cam.y,cam.x+VWw,cam.y+VHw)) if(o.floor&&layerOf(o)===L){ lit=9; break; } if(!lit) for(const o of obs){ if(o.floor&&layerOf(o)===L&&o.x<cam.x+VWw&&o.x+o.w>cam.x&&o.y<cam.y+VHw&&o.y+o.h>cam.y){ lit=9; break; } } } }
   if(lit>8){ DARK.n=0; return; }
   DARK.n++; if(DARK.n<3) return;
   const bad=![P.x,P.y,cam.x,cam.y,ZOOM,shake].every(Number.isFinite), off=P.x<0||P.x>MAP||P.y<0||P.y>(UG?NLAYERS*UG:MAP);
