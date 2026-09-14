@@ -95,7 +95,7 @@ function packActor(a, now){
 }
 function packMe(a, now){
   return { stam:Math.round(a.stam), ammo:a.ammo, heals:a.heals, nades:a.nades, bleed:Math.round(a.bleed*10)/10, slots:a.slots, sel:a.sel, last:a.last,
-    vh:a.vestHp, vestLvl:a.vest, helmLvl:a.helm, hsCd:rem(a.hsCd,now), fs:rem(a.fireSlow,now), dr:rem(a.drawEnd||0,now), su:rem(a.suppress||0,now), ads:a.ads?1:0, key:a.hasKey?1:0, pk:[a.perks?a.perks.hh|0:0,a.perks?a.perks.si|0:0], seq:a.ackSeq|0 };
+    vh:a.vestHp, vestLvl:a.vest, helmLvl:a.helm, hsCd:rem(a.hsCd,now), fs:rem(a.fireSlow,now), dr:rem(a.drawEnd||0,now), su:rem(a.suppress||0,now), ads:a.ads?1:0, key:a.hasKey?1:0, cd:a.hasCard?1:0, pk:[a.perks?a.perks.hh|0:0,a.perks?a.perks.si|0:0], seq:a.ackSeq|0 };
 }
 function broadcast(){
   if(!clients.size){ events.length = 0; SRV.LOG.length = 0; return; }
@@ -109,7 +109,7 @@ function broadcast(){
   const R = st.rd, aliveN = [...st.players, ...st.bots].filter(a=>!a.dead).length;
   const rd = [R.phase, rem(R.until, now), aliveN, R.winner, R.n, st.map, R.seed];
   if(st.map !== lastMap){ lastMap = st.map; crateCount = -1; }
-  const B = st.bank, bk = [B.open?1:0, B.crackBy?B.crackBy.id:0, rem(B.crackEnd, now)];
+  const B = st.bank, bk = [B.open?1:0, B.crackBy?B.crackBy.id:0, rem(B.crackEnd, now), B.power?1:0];
   const pr = st.props.map(p => [p.uses===Infinity?-1:p.uses, p.by?p.by.id:0, rem(p.until, now), p.open?1:0]), rr = rem(st.radar.until, now);
   const zn = st.zone, z = [Math.round(zn.x), Math.round(zn.y), Math.round(zn.r), Math.round(zn.tx), Math.round(zn.ty), Math.round(zn.tr), zn.moving?1:0, zn.stage];
   const lootIds = new Set(st.loot.map(l => l.lid));
