@@ -3176,6 +3176,11 @@ function drawMelee(id, len, opt){ opt=opt||{}; const g=opt.grip||0;
   ctx.restore(); }
 /* how each gun is held: [fore hand, grip hand] in gun space */
 const GUN_CLASS={glock:'pistol',deagle:'pistol',magnum:'pistol',mp5:'smg',uzi:'smg',vector:'smg',m870:'shotgun',saiga:'shotgun',spas:'shotgun',dbs:'shotgun',ak:'rifle',m4:'rifle',scar:'rifle',famas:'rifle',g3:'rifle',mosin:'sniper',kar:'sniper',barrett:'heavy',m249:'lmg',minigun:'lmg',xbow:'bow'};
+/* how each melee weapon is held: l/r hand poses, w = weapon angle from the right hand, two = both hands on it, style: arc | heavy | thrust | saw */
+const MELEE_POSE={knife:{l:[16,-10],r:[19,8],w:-.1,style:'thrust'},machete:{l:[15,-10],r:[17,9],w:-.25,style:'arc'},crowbar:{l:[15,-10],r:[17,9],w:.3,style:'arc'},pipe:{l:[15,-10],r:[17,9],w:.3,style:'arc'},
+  bat:{l:[13,12],r:[9,10],w:1.05,two:true,style:'heavy',back:1.5,thru:-1.3},katana:{l:[18,3],r:[12,7],w:-.35,two:true,style:'arc'},claymore:{l:[18,3],r:[12,8],w:-.4,two:true,style:'heavy'},
+  axe:{l:[19,4],r:[12,9],w:.2,two:true,style:'heavy'},sledge:{l:[19,4],r:[11,9],w:.2,two:true,style:'heavy'},hammer:{l:[19,4],r:[11,9],w:.2,two:true,style:'heavy'},
+  scythe:{l:[20,-3],r:[10,8],w:-.3,two:true,style:'arc'},spear:{l:[24,4],r:[8,8],w:0,two:true,style:'thrust'},chainsaw:{l:[22,-6],r:[13,7],w:0,two:true,style:'saw'}};
 const HAND_POSE={pistol:[[22,-5],[17,6]],smg:[[27,-5],[15,7]],shotgun:[[33,-5],[14,7]],rifle:[[32,-5],[15,7]],sniper:[[34,-4],[14,7]],heavy:[[37,-5],[15,8]],lmg:[[30,-9],[12,8]],bow:[[25,-3],[12,6]]};
 function drawActor(a, isP){
   const w=wep(a);
@@ -3216,10 +3221,12 @@ function drawActor(a, isP){
     ctx.beginPath(); ctx.arc(0,0,a.r*.72,0,TAU); ctx.fill(); }
   if(a.helm){ ctx.fillStyle=armorColor(a.helm);
     ctx.beginPath(); ctx.arc(2,0,a.r*.5,0,TAU); ctx.fill(); }
-  // hands: two circles that ease toward wherever the weapon wants them (gun-local frame, +x forward)
+  // hands: two circles that ease toward wherever the weapon wants them (rig frame: +x forward, +y the right-hand side)
   ctx.lineCap='round';
   const HR=a.r*.36, skin=isP?'#c9a27a':a.isBot?'#b89878':'#c9a27a';
-  let tl, tr, gunOff=0, gunRl=0, gunTilt=0, magY=null, shellHand=false, hideGun=false, nadeHand=null, kit=false;
+  const rot=(x,y,an)=>[x*Math.cos(an)-y*Math.sin(an),x*Math.sin(an)+y*Math.cos(an)];
+  let tl, tr, gunOff=0, gunRl=0, gunTilt=0, magY=null, magHand=false, shellHand=false, hideGun=false, nadeHand=null, kit=false;
+  let rig=0, wang=0, wanchor=null, thrust=0, jit=0;   // rig rotation, weapon angle offset, [x,y] the weapon is drawn from, forward push
   const moving=Math.hypot(a.vx,a.vy), stride=Math.sin(a.stepPhase);
   if(w.kind==='gun'){
     const g=w.d; const cls=GUN_CLASS[w.id]||'rifle'; const pose=HAND_POSE[cls];
@@ -3227,52 +3234,70 @@ function drawActor(a, isP){
     const recoil=clamp((a.fireAt-tNow)/90,0,1)*(cls==='pistol'?4:cls==='sniper'?8:5); gunOff=recoil;
     const shotAt=a.fireAt-60000/g.rpm, since=tNow-shotAt;
     if(cls==='shotgun'&&g.shell&&since>90&&since<420&&!a.reloading){ const t=(since-90)/330; tl[0]-=Math.sin(t*Math.PI)*9; }                 // pump
-    if(cls==='sniper'&&!g.scope&&since>0&&since<100){}
     if((w.id==='mosin'||w.id==='kar')&&since>120&&since<620&&!a.reloading){ const t=(since-120)/500; const u=Math.sin(t*Math.PI); tr=[lerp(tr[0],17,u),lerp(tr[1],-7,u)]; gunTilt=-.12*u; }   // bolt
     if(a.reloading){ const k=clamp(1-(a.reloadEnd-tNow)/Math.max(1,(a.reloadDur||g.reload)),0,1);
       if(g.shell){ // shells one at a time: the grip hand goes belt → receiver → belt
-        const n=Math.max(2,Math.round(a.reloadDur/650)), u=(k*n)%1; const s2=Math.sin(u*Math.PI); tr=[lerp(4,tl[0]-8,s2),lerp(15,-2,s2)]; shellHand=u>.2&&u<.8; gunTilt=.18; }
-      else if(w.id==='magnum'){ gunTilt=k<.2?lerp(0,-.55,k/.2):k<.8?-.55:lerp(-.55,0,(k-.8)/.2); if(k>.2&&k<.8){ const u=(k-.2)/.6; tl=[10+Math.cos(u*TAU*2)*3,-9+Math.sin(u*TAU*2)*3]; } }
-      else if(w.id==='xbow'){ const u=k<.6?k/.6:1; tr=[lerp(tr[0],2,Math.sin(u*Math.PI)),lerp(tr[1],1,Math.sin(u*Math.PI))]; }
-      else { gunTilt=k<.2?lerp(0,.35,k/.2):k<.8?.35:lerp(.35,0,(k-.8)/.2); gunRl=Math.sin(k*Math.PI)*3;
-        if(k<.25) magY=lerp(6,34,k/.25); if(k>.25&&k<.7){ const u=(k-.25)/.45; tr=[lerp(tr[0],-2,Math.sin(u*Math.PI)),lerp(tr[1],15,Math.sin(u*Math.PI))]; }
-        if(k>=.7&&k<.8) magY=lerp(22,6,(k-.7)/.1); if(k>=.85&&k<.95){ const u=Math.sin((k-.85)/.1*Math.PI); tl[0]-=u*6; } } }
+        const n=Math.max(2,Math.round(a.reloadDur/650)), u=(k*n)%1; const s2=Math.sin(u*Math.PI); tr=[lerp(6,tl[0]-8,s2),lerp(15,-1,s2)]; shellHand=u>.15&&u<.85; gunTilt=.18; }
+      else if(w.id==='magnum'){ gunTilt=k<.2?lerp(0,-.55,k/.2):k<.8?-.55:lerp(-.55,0,(k-.8)/.2); if(k>.2&&k<.8){ const u=(k-.2)/.6; tl=[12+Math.cos(u*TAU*2)*3,-10+Math.sin(u*TAU*2)*3]; } }
+      else if(w.id==='xbow'){ const u=k<.6?k/.6:1; tr=[lerp(tr[0],4,Math.sin(u*Math.PI)),lerp(tr[1],2,Math.sin(u*Math.PI))]; }
+      else { // magazine: tilt, drop the old one, hand to the pouch, new one in, rack it
+        gunTilt=k<.15?lerp(0,.4,k/.15):k<.75?.4:lerp(.4,0,(k-.75)/.1);
+        if(k<.2){ magY=lerp(6,26,k/.2); }
+        if(k>=.2&&!IS_SERVER&&a._magDrop!==a.reloadEnd){ a._magDrop=a.reloadEnd; const mx=a.x+Math.cos(a.ang)*16+Math.cos(a.ang+1.57)*10, my=a.y+Math.sin(a.ang)*16+Math.sin(a.ang+1.57)*10; parts.push({x:mx,y:my,vx:Math.cos(a.ang+1.57)*rnd(70,30)+a.vx*.5,vy:Math.sin(a.ang+1.57)*rnd(70,30)+a.vy*.5,life:.7,max:.7,c:'#15181c',s:9,kind:'chunk',rot:a.ang,rv:rnd(8,-8),land:true}); }
+        if(k>=.15&&k<.5){ const u=(k-.15)/.35; const e=Math.sin(u*Math.PI); tr=[lerp(tr[0],0,e),lerp(tr[1],17,e)]; magHand=u>.4; }
+        if(k>=.5&&k<.72){ const u=(k-.5)/.22; magHand=u<.8; tr=[lerp(tr[0]-2,tr[0],u),lerp(tr[1]+6,tr[1],u)]; magY=lerp(24,6,u); }
+        if(k>=.84&&k<.96){ const u=Math.sin((k-.84)/.12*Math.PI); tl[0]-=u*7; } } }
     if(a.ads){ tl[0]+=2; tr[0]+=1; }
+    // the fore hand rides the gun when it tilts (pivot at 4,0)
+    if(gunTilt){ const v=rot(tl[0]-4,tl[1],gunTilt); tl=[v[0]+4,v[1]]; }
   } else {
-    const d=w.d; let wa=0, arm=0; const s2=a.swing;
-    if(s2){ const sweep=s2.a1-s2.a0;
-      if(s2.phase==='wind'){ const t=clamp((tNow-s2.t0)/s2.wind,0,1); wa=-sweep*.55*Math.pow(t,.6); arm=lerp(0,-5,t); }
-      else if(s2.phase==='act'){ wa=adiff(s2.a0+sweep*s2.prog,a.ang); arm=9; }
-      else { const t=clamp((tNow-s2.t0)/s2.rec,0,1); wa=adiff(s2.a1,a.ang)*(1-t); arm=lerp(9,0,t); } }
-    if(a.block) wa=0;
-    a._wa=wa;
-    if(w.id==='fists'){ // boxing: guard up, the lead hand shoots out on the swing, feet-driven sway when walking
-      const lead=s2?(Math.floor(s2.t0/7)%2):0; let punch=0; if(s2&&s2.phase==='act') punch=Math.sin(Math.min(1,s2.prog*1.15)*Math.PI); else if(s2&&s2.phase==='rec') punch=Math.max(0,1-clamp((tNow-s2.t0)/s2.rec,0,1))*.35;
+    const d=w.d, s2=a.swing, mp=MELEE_POSE[w.id];
+    let wind=0, act=0, rec=0; if(s2){ if(s2.phase==='wind') wind=clamp((tNow-s2.t0)/s2.wind,0,1); else if(s2.phase==='act') act=s2.prog; else rec=1-clamp((tNow-s2.t0)/s2.rec,0,1); }
+    const sweep=s2?s2.a1-s2.a0:0;
+    if(!mp){ // fists and knuckles: boxing guard, the lead hand shoots out, feet-driven sway when walking
+      const lead=s2?(Math.floor(s2.t0/7)%2):0; let punch=0; if(act) punch=Math.sin(Math.min(1,act*1.15)*Math.PI); else if(rec) punch=rec*.35; else if(wind) punch=-wind*.25;
       const reach=d.reach*.8; tl=[16+(lead?0:punch*reach),-11-(moving>60?stride*1.5:0)]; tr=[16+(lead?punch*reach:0),11+(moving>60?stride*1.5:0)];
       if(a.block){ tl=[18,-8]; tr=[18,8]; } }
-    else { tl=a.block?[16,-11]:[15+arm,-9]; tr=a.block?[16,11]:[15+arm,9]; }
+    else {
+      tl=[mp.l[0],mp.l[1]]; tr=[mp.r[0],mp.r[1]]; wang=mp.w;
+      if(mp.style==='arc'){ if(wind) rig=-sweep*.55*Math.pow(wind,.6); else if(act) rig=adiff(s2.a0+sweep*act,a.ang); else if(rec) rig=adiff(s2.a1,a.ang)*rec; const ext=act?9:rec?9*rec:wind?-5*wind:0; tl[0]+=ext; tr[0]+=ext; }
+      else if(mp.style==='heavy'){ // hauled back over the shoulder, then brought round in one heave
+        const backA=mp.back!=null?mp.back:-1.15, thruA=mp.thru!=null?mp.thru:.95;
+        if(wind){ wang=lerp(mp.w,backA,Math.pow(wind,.7)); rig=-sweep*.25*wind; tr[0]-=6*wind; tl[0]-=6*wind; }
+        else if(act){ wang=lerp(backA,thruA,Math.pow(act,.8)); rig=adiff(s2.a0+sweep*act,a.ang)*.6; tr[0]+=6; tl[0]+=6; }
+        else if(rec){ wang=lerp(mp.w,thruA,rec); rig=adiff(s2.a1,a.ang)*.6*rec; } }
+      else if(mp.style==='thrust'){ const push=d.reach*(w.id==='spear'?.42:.6); if(wind) thrust=-push*.2*wind; else if(act) thrust=push*Math.sin(Math.min(1,act*1.1)*Math.PI); else if(rec) thrust=push*.15*rec; tl[0]+=thrust; tr[0]+=thrust; }
+      else if(mp.style==='saw'){ jit=1; if(act) thrust=10*Math.sin(act*Math.PI); else if(wind) thrust=-4*wind; tl[0]+=thrust; tr[0]+=thrust; }
+      if(a.block){ rig=0; wang=mp.two?-1.2:-.9; tl=[15,-9]; tr=[15,9]; thrust=0; }
+      // the off hand rides the weapon: rotate it about the grip by the weapon's extra swing
+      if(mp.two&&!a.block){ const ex=wang-mp.w; const v=rot(tl[0]-tr[0],tl[1]-tr[1],ex); tl=[tr[0]+v[0],tr[1]+v[1]]; } }
+    a._wa=rig;
   }
   // grenade in hand, the throw, and a medkit take the hands off the weapon
   if(a.gHold&&a.nades>0){ nadeHand='hold'; tl=[-4,-17]; tr=[12,13]; hideGun=true; }
   if(a.throwAt&&tNow-a.throwAt<260){ const t=(tNow-a.throwAt)/260; nadeHand='throw'; tl=[lerp(-6,28,Math.pow(t,.6)),lerp(-17,-4,t)]; tr=[12,13]; hideGun=true; }
   if(a.healKind&&a.healEnd>tNow){ kit=true; const j=Math.sin(tNow/70)*1.2; tl=[14+j,-9]; tr=[14-j,9]; hideGun=true; }
   if(a.stagger>tNow||a.slideUntil>tNow){ tl[0]-=3; tr[0]-=3; }
+  if(jit){ tl[0]+=rnd(1,-1); tl[1]+=rnd(1,-1); tr[0]+=rnd(.6,-.6); }
   // ease
-  if(!a.hands) a.hands={l:[tl[0],tl[1]],r:[tr[0],tr[1]],g:0,t:0};
-  const H=a.hands, E=.42; H.l[0]=lerp(H.l[0],tl[0],E); H.l[1]=lerp(H.l[1],tl[1],E); H.r[0]=lerp(H.r[0],tr[0],E); H.r[1]=lerp(H.r[1],tr[1],E); H.g=lerp(H.g,gunOff,.6); H.t=lerp(H.t,gunTilt,.35);
+  if(!a.hands) a.hands={l:[tl[0],tl[1]],r:[tr[0],tr[1]],g:0,t:0,wa:wang,rig:rig};
+  const H=a.hands, E=.45; H.l[0]=lerp(H.l[0],tl[0],E); H.l[1]=lerp(H.l[1],tl[1],E); H.r[0]=lerp(H.r[0],tr[0],E); H.r[1]=lerp(H.r[1],tr[1],E); H.g=lerp(H.g,gunOff,.6); H.t=lerp(H.t,gunTilt,.35); H.wa=lerp(H.wa==null?wang:H.wa,wang,.5); H.rig=rig;
   const hand=(x,y,r)=>{ ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(x+2,y+3,r,0,TAU); ctx.fill(); ctx.fillStyle=a.hurtFlash>tNow?'#e8c8c0':skin; ctx.strokeStyle='rgba(20,14,10,.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.stroke(); ctx.fillStyle='rgba(255,255,255,.18)'; ctx.beginPath(); ctx.arc(x-r*.3,y-r*.3,r*.4,0,TAU); ctx.fill(); };
+  const knucks=(x,y)=>{ ctx.fillStyle='#8a9098'; ctx.strokeStyle='rgba(10,14,18,.8)'; ctx.lineWidth=1; for(let i=-1.5;i<=1.5;i++){ ctx.beginPath(); ctx.arc(x+HR*.55,y+i*3.6,2.1,0,TAU); ctx.fill(); ctx.stroke(); } };
   if(w.kind==='gun'){
     if(!hideGun){ ctx.save(); ctx.translate(4,0); ctx.rotate(H.t); drawGun(w.id,H.g,gunRl); ctx.restore();
       if(magY!=null&&!w.d.shell){ ctx.save(); ctx.translate(4,0); ctx.rotate(H.t); ctx.fillStyle='#15181c'; ctx.fillRect(10,magY,6,12); ctx.strokeStyle='rgba(8,10,14,.75)'; ctx.lineWidth=1; ctx.strokeRect(10,magY,6,12); ctx.restore(); } }
     hand(H.r[0],H.r[1],HR); hand(H.l[0]-H.g*.7,H.l[1],HR);
+    if(magHand){ ctx.save(); ctx.translate(H.r[0],H.r[1]); ctx.rotate(.5); ctx.fillStyle='#15181c'; ctx.fillRect(-3,-2,6,12); ctx.strokeStyle='rgba(8,10,14,.75)'; ctx.lineWidth=1; ctx.strokeRect(-3,-2,6,12); ctx.restore(); }
     if(shellHand){ ctx.fillStyle='#b2352c'; ctx.beginPath(); ctx.arc(H.r[0],H.r[1]-2,2.6,0,TAU); ctx.fill(); ctx.fillStyle='#c9a227'; ctx.fillRect(H.r[0]-2.6,H.r[1]-1,5.2,2); }
   } else {
-    ctx.save(); ctx.rotate(a._wa||0);
-    const len=w.d.reach*.86;
-    if(w.id!=='fists'&&!hideGun){ ctx.save(); if(a.block){ ctx.translate(17,14); ctx.rotate(-Math.PI/2); drawMelee(w.id,len*.78); } else { ctx.translate(H.r[0]-2,H.r[1]-1); ctx.rotate(-.06); drawMelee(w.id,len); } ctx.restore(); }
+    ctx.save(); ctx.rotate(H.rig||0);
+    const mp=MELEE_POSE[w.id], len=w.d.reach*.86;
+    if(mp&&!hideGun){ ctx.save(); ctx.translate(H.r[0],H.r[1]); ctx.rotate(H.wa); if(jit) ctx.translate(rnd(1,-1),rnd(1,-1)); ctx.translate(-3,0); drawMelee(w.id,len); ctx.restore(); }
     hand(H.l[0],H.l[1],HR); hand(H.r[0],H.r[1],HR);
+    if(w.id==='knuckles'){ knucks(H.l[0],H.l[1]); knucks(H.r[0],H.r[1]); }
     ctx.restore(); }
-  if(nadeHand){ const hx=nadeHand==='hold'?H.l[0]:H.l[0], hy=H.l[1]; if(nadeHand==='hold'||tNow-a.throwAt<90){ ctx.fillStyle='#5f7a3a'; ctx.beginPath(); ctx.arc(hx,hy,5.5,0,TAU); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=1.2; ctx.stroke(); ctx.fillStyle='#c9ccd0'; ctx.fillRect(hx-1.5,hy-9,3,4); } }
+  if(nadeHand){ const hx=H.l[0], hy=H.l[1]; if(nadeHand==='hold'||tNow-a.throwAt<90){ ctx.fillStyle='#5f7a3a'; ctx.beginPath(); ctx.arc(hx,hy,5.5,0,TAU); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=1.2; ctx.stroke(); ctx.fillStyle='#c9ccd0'; ctx.fillRect(hx-1.5,hy-9,3,4); } }
   if(kit){ ctx.fillStyle='#e6ecef'; ctx.fillRect(H.l[0]-2,H.l[1]-4,H.r[0]-H.l[0]+4,H.r[1]-H.l[1]+8); ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=1; ctx.strokeRect(H.l[0]-2,H.l[1]-4,H.r[0]-H.l[0]+4,H.r[1]-H.l[1]+8); ctx.fillStyle='#c8352c'; const cx=(H.l[0]+H.r[0])/2, cy=(H.l[1]+H.r[1])/2; ctx.fillRect(cx-1.5,cy-4,3,8); ctx.fillRect(cx-4,cy-1.5,8,3); }
   // running kicks up dust
   if(gfxHigh()&&moving>230&&!IS_SERVER){ const st=Math.floor(a.stepPhase/Math.PI); if(a._step!==st){ a._step=st; parts.push({x:a.x-Math.cos(a.ang)*4+rnd(6,-6),y:a.y+rnd(6,-6),vx:-a.vx*.15+rnd(20,-20),vy:-a.vy*.15+rnd(20,-20),life:.5,max:.5,c:'rgba(160,150,130,.35)',s:5,kind:'smoke',grow:2.2}); } }
