@@ -452,6 +452,9 @@ const mini = document.getElementById('mini');
 const mctx = mini.getContext('2d');
 
 let VW=0, VH=0, DPR=1, VWw=0, VHw=0, ZOOM=1, touchMode=false;
+const BASE_ZOOM=1.7, SIGHT_STEP=.885;   // you start close in; each SIGHT level pulls the camera back (×0.885)
+const ROMAN=['','I','II','III','IV','V','VI','VII','VIII'];
+const PERK_MAX={hh:3,si:6}; let SIGHT_LV=0;   // the local player's SIGHT level, mirrored here because resize() runs before P exists
 // graphics: LOW keeps a weak machine at 60; HIGH is the full look
 const GFX={level:'high',reflect:true,mblur:true,time:'night'};
 try{ Object.assign(GFX,JSON.parse(localStorage.getItem('bw.gfx')||'{}')); }catch(e){}
@@ -465,7 +468,7 @@ function resize(){
   cv.height= lcv.height= Math.floor(VH*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   lctx.setTransform(DPR,0,0,DPR,0,0);
-  ZOOM = touchMode ? clamp(VW/780,.5,.95) : 1;
+  ZOOM = (touchMode ? clamp(VW/780,.5,.95)*1.3 : BASE_ZOOM); ZOOM*=Math.pow(SIGHT_STEP,SIGHT_LV);
   VWw = VW/ZOOM; VHw = VH/ZOOM;
   try{ if(P) perkZoom(); }catch(e){}   // P doesn't exist yet on the first resize
 }
@@ -817,7 +820,7 @@ function useProp(a,p){ const me=a===P;
   if(p.kind==='radio'){ if(p.until>tNow){ if(me) flash('RADAR RECHARGING — '+Math.ceil((p.until-tNow)/1000)+'s'); return; } p.by=a; p.until=tNow+PROP.radio.ms; A.radar(p.cx,p.cy); addLog((me?'you are':a.name+' is')+' tuning the radio mast', me); return; } }
 function finishProp(p,a){ const me=a===P;
   if(p.kind==='wcrate'){ p.open=true; p.uses=0; A.rare(); flashLight(p.cx,p.cy,220,500,'#ffd27a'); for(let i=0;i<14;i++) spark(p.cx,p.cy,rnd(TAU),1.4); addLog((me?'you':a.name)+' opened a weapon crate', me);
-    if(!IO.on){ const g=spick(['scar','m249','saiga','mosin','m4','ak','deagle','m870','g3','kar','spas','famas','magnum','xbow','vector']); const it=[{t:'gun',id:g,rounds:GUNS[g].mag},{t:'ammo',id:GUNS[g].ammo||'556',n:GUNS[g].ammo==='12g'?12:40},{t:'nade'}]; if(srand()<.35) it.push({t:'vest',lvl:rollVaultArmor(),hp:0}); if(srand()<.25) it.push({t:'perk',id:spick(['hh','si'])}); for(let i=0;i<it.length;i++){ const q=i/it.length*TAU; if(it[i].t==='vest') it[i].hp=vestHpMax(it[i].lvl); spawnLoot(p.cx+Math.cos(q)*44,p.cy+Math.sin(q)*44+40,it[i]); } } return; }
+    if(!IO.on){ const g=spick(['scar','m249','saiga','mosin','m4','ak','deagle','m870','g3','kar','spas','famas','magnum','xbow','vector']); const it=[{t:'gun',id:g,rounds:GUNS[g].mag},{t:'ammo',id:GUNS[g].ammo||'556',n:GUNS[g].ammo==='12g'?12:40},{t:'nade'}]; if(srand()<.35) it.push({t:'vest',lvl:rollVaultArmor(),hp:0}); if(srand()<.45) it.push({t:'perk',id:spick(['hh','si','si'])}); for(let i=0;i<it.length;i++){ const q=i/it.length*TAU; if(it[i].t==='vest') it[i].hp=vestHpMax(it[i].lvl); spawnLoot(p.cx+Math.cos(q)*44,p.cy+Math.sin(q)*44+40,it[i]); } } return; }
   if(p.kind==='radio'){ p.until=tNow+PROP.radio.cd; RADAR.until=tNow+8000; RADAR.ping=0; A.alarm(p.cx,p.cy); addLog('RADAR SWEEP — '+(me?'you':a.name)+' lit up everyone on the map', me); if(!IS_SERVER) flash(me?'RADAR: everyone is lit up for 8s':'RADAR SWEEP — you are lit up'); return; } }
 function propTick(){
   if(RADAR.until>tNow && tNow>=RADAR.ping){ RADAR.ping=tNow+600; for(const t of [...players,...bots]) if(!t.dead) pings.push({x:t.x,y:t.y,t0:tNow,r:38,radar:true}); }
@@ -1132,7 +1135,7 @@ function houseT(bx,by,T){ const t=HT; HOUSES.push({x:bx,y:by,w:T.w,h:T.h,tpl:Obj
     for(const [cx,cy,dx,dy] of [[t,t,1,1],[T.w-t,t,-1,1],[t,T.h-t,1,-1],[T.w-t,T.h-t,-1,-1]]) if(srand()<.4) dec('web',bx+cx,by+cy+z,{dx,dy,r:srnd(34,22)});
     for(const l of L.lamps) lamps.push({x:bx+l[0],y:by+l[1]+z,kind:l[2],r:l[3],ph:srnd(TAU),indoor:l[2]!=='chandelier'});
     for(const p of (L.props||[])) addProp(bx+p[1],by+p[2]+z,p[3],p[4],p[0]);
-    if(MODE!=='kit') for(const q of L.loot) spawnLoot(bx+q[0],by+q[1]+z,lootRoll(isUp?.75:.55)); };
+    if(MODE!=='kit'){ for(const q of L.loot) spawnLoot(bx+q[0],by+q[1]+z,lootRoll(isUp?.75:.55)); if(!isUp&&srand()<.4){ const q=spick(L.loot); spawnLoot(bx+q[0]+30,by+q[1]+z,{t:'perk',id:srand()<.8?'si':'hh'}); } } };
   T.curtain=spick(['#7a2a2a','#2a4a6a','#6a5a2a','#4a2a5a','#3a5a3a']);
   layer(T,0,false);
   // porch + light outside the front door (the first door on the shell)
@@ -1166,7 +1169,7 @@ function ioRefill(){
 }
 function lootRoll(q){
   const r=srand();
-  if(r<.012) return {t:'perk', id:spick(['hh','si'])};
+  if(r<.022) return {t:'perk', id:spick(['hh','si','si','si'])};
   if(r<.17*q) return {t:'gun', id:spick(['glock','glock','mp5','m870','ak','m4','mosin','deagle','uzi','saiga','scar','m249','vector','spas','dbs','famas','kar','magnum','g3','xbow'])};
   if(r<.30*q) return {t:'melee', id:spick(['crowbar','machete','axe','machete','knife','katana','bat','sledge','spear','hammer','claymore','knuckles','scythe','pipe'])};
   if(r<.40)   return {t:'vest', lvl:rollArmorLvl()};
@@ -2046,9 +2049,9 @@ function stepReload(a){
 
 /* ── headshot mode ── */
 const HEAD_R = 7.5;                 // the small hitbox you have to actually hit
-const PERKS={hh:{name:'HEADHUNTER',desc:['','head hitbox +35%','head hitbox +70%','head hitbox doubled, head mode recharges faster']},si:{name:'SIGHT',desc:['','see 15% further','see 30% further, wider view','see 50% further, widest view']}};
+const PERKS={hh:{name:'HEADHUNTER',desc:['','head hitbox +35%','head hitbox +70%','head hitbox doubled, head mode recharges faster']},si:{name:'SIGHT',desc:['','camera pulls back, see 12% further','camera pulls back, see 24% further','camera pulls back, see 36% further','camera pulls back, see 48% further','camera pulls back, see 60% further','camera all the way out, see 72% further']}};
 const headRadius=a=>HEAD_R*(1+.35*((a&&a.perks&&a.perks.hh)||0));
-function perkZoom(){ const si=(P&&P.perks&&P.perks.si)||0; const base=touchMode?clamp(VW/780,.5,.95):1; const z=base*(1-.07*si); if(Math.abs(z-ZOOM)>.001){ ZOOM=z; VWw=VW/ZOOM; VHw=VH/ZOOM; } }
+function perkZoom(){ const si=(P&&P.perks&&P.perks.si)||0; SIGHT_LV=si; const base=touchMode?clamp(VW/780,.5,.95)*1.3:BASE_ZOOM; const z=base*Math.pow(SIGHT_STEP,si); if(Math.abs(z-ZOOM)>.001){ ZOOM=z; VWw=VW/ZOOM; VHw=VH/ZOOM; } }
 const HS_CD  = 3000;                // 3s between attempts
 const HS_DMG = 220;                 // lethal on a bare head
 const HELM_HEAD = [0,.30,.41,.50,.58,.65,.72,.78,.84,.90,.96]; // vs a head round
@@ -2487,7 +2490,7 @@ function pickup(a,l){
   else if(l.t==='heal'){ a.heals[l.id]+=(l.n||1); msg=l.id; }
   else if(l.t==='nade'){ a.nades+=(l.n||1); msg='frag'; }
   else if(l.t==='key'){ a.hasKey=true; msg="the owner's key"; }
-  else if(l.t==='perk'){ if(!a.perks) a.perks={hh:0,si:0}; if(a.perks[l.id]>=3){ took=false; if(a===P) flash(PERKS[l.id].name+' is maxed'); } else { a.perks[l.id]++; msg=PERKS[l.id].name+' '+['','I','II','III'][a.perks[l.id]]+' — '+PERKS[l.id].desc[a.perks[l.id]]; if(a===P){ A.rare(); perkZoom(); } } }
+  else if(l.t==='perk'){ if(!a.perks) a.perks={hh:0,si:0}; if(a.perks[l.id]>=PERK_MAX[l.id]){ took=false; if(a===P) flash(PERKS[l.id].name+' is maxed'); } else { a.perks[l.id]++; msg=PERKS[l.id].name+' '+ROMAN[a.perks[l.id]]+' — '+PERKS[l.id].desc[a.perks[l.id]]; if(a===P){ A.rare(); perkZoom(); } } }
   if(took){ loot.splice(loot.indexOf(l),1);
     if(a===P){ if((l.t==='vest'||l.t==='helm') && l.lvl>=8) A.rare(); else A.pickup();
       if(msg) flash('picked up '+msg); } }
@@ -3581,7 +3584,7 @@ function lootLabel(l){
   if(l.t==='heal') return l.id.toUpperCase();
   if(l.t==='nade') return 'FRAG';
   if(l.t==='key') return "THE OWNER'S KEY";
-  if(l.t==='perk') return PERKS[l.id].name+' '+['I','II','III'][Math.min(2,(P&&P.perks&&P.perks[l.id])||0)]+(P&&P.perks&&P.perks[l.id]>=3?' (maxed)':'');
+  if(l.t==='perk') return PERKS[l.id].name+' '+ROMAN[Math.min(PERK_MAX[l.id],((P&&P.perks&&P.perks[l.id])||0)+1)]+(P&&P.perks&&P.perks[l.id]>=PERK_MAX[l.id]?' (maxed)':'');
   return '?';
 }
 function drawLoot(l){
@@ -3956,7 +3959,7 @@ function viewRadius(){
   const w=wep(P);
   let r = VIEW_BASE;
   if(w.kind==='gun' && P.ads) r = 520 + (w.d.scope? 340:150);
-  return r*(1+.15*((P.perks&&P.perks.si)||0));
+  return r*(1+.12*((P.perks&&P.perks.si)||0));
 }
 const ugFx={t0:-1e9,down:true,label:'',snap:null,cur:null,has:false}; const FLOOR_MS=750; const drips=[];
 function drawUnderFx(sx,sy){
@@ -4041,7 +4044,7 @@ function hud(){
   { const a=P.ammo||{}; const rows=[['9mm',AMMO_COLOR['9mm']],['12g',AMMO_COLOR['12g']],['762',AMMO_COLOR['762']],['556',AMMO_COLOR['556']]].map(([k,c])=>'<div><small>'+k+'</small><i style="background:'+c+'"></i>'+(a[k]|0)+'</div>').join('')
       +'<div><small>frag</small><i style="background:#7fae5a"></i>'+(P.nades|0)+'</div><div><small>bnd</small><i style="background:#cfd8dc"></i>'+((P.heals&&P.heals.bandage)|0)+'</div><div><small>med</small><i style="background:#c8352c"></i>'+((P.heals&&P.heals.medkit)|0)+'</div>';
     const col=$('ammoCol'); if(col&&col.innerHTML!==rows) col.innerHTML=rows; }
-  { const pk=P.perks||{hh:0,si:0}; const html=['hh','si'].filter(k=>pk[k]>0).map(k=>'<span style="padding:2px 6px;border:1px solid #e0b44a;color:#e0b44a;border-radius:3px">'+PERKS[k].name+' '+['','I','II','III'][pk[k]]+'</span>').join(''); if($('perks').innerHTML!==html) $('perks').innerHTML=html; }
+  { const pk=P.perks||{hh:0,si:0}; const html=['hh','si'].filter(k=>pk[k]>0).map(k=>'<span style="padding:2px 6px;border:1px solid #e0b44a;color:#e0b44a;border-radius:3px">'+PERKS[k].name+' '+ROMAN[pk[k]]+'</span>').join(''); if($('perks').innerHTML!==html) $('perks').innerHTML=html; }
   $('hp').querySelector('i').style.transform='scaleX('+(P.hp/P.maxhp)+')';
   $('hpNum').innerHTML=Math.ceil(P.hp)+'<small> / '+P.maxhp+'</small>';
   $('hp').classList.toggle('hurt', P.hp<35);
@@ -4288,7 +4291,7 @@ function ioSnapshot(m){
   bots=[...IO.byId.values()].filter(a=>a.id!==IO.id);
   // my private state
   const pm=m.me; if(pm){ P.stam=pm.stam; P.ammo=pm.ammo; P.heals=pm.heals; P.nades=pm.nades; P.bleed=pm.bleed; P.slots=pm.slots; P.sel=pm.sel; P.last=pm.last;
-    P.hasKey=!!pm.key; if(pm.pk){ const was=P.perks||{hh:0,si:0}; P.perks={hh:pm.pk[0],si:pm.pk[1]}; if(P.perks.hh>was.hh||P.perks.si>was.si){ const id=P.perks.hh>was.hh?'hh':'si'; flash(PERKS[id].name+' '+['','I','II','III'][P.perks[id]]+' — '+PERKS[id].desc[P.perks[id]]); A.rare(); perkZoom(); } } P.vestHp=pm.vh; P.hsCd=pm.hsCd?tNow+pm.hsCd:0; P.fireSlow=pm.fs?tNow+pm.fs:0; P.drawEnd=pm.dr?tNow+pm.dr:0; P.suppress=pm.su?tNow+pm.su:0; P.ads=!!pm.ads;
+    P.hasKey=!!pm.key; if(pm.pk){ const was=P.perks||{hh:0,si:0}; P.perks={hh:pm.pk[0],si:pm.pk[1]}; if(P.perks.hh>was.hh||P.perks.si>was.si){ const id=P.perks.hh>was.hh?'hh':'si'; flash(PERKS[id].name+' '+ROMAN[P.perks[id]]+' — '+PERKS[id].desc[P.perks[id]]); A.rare(); perkZoom(); } } P.vestHp=pm.vh; P.hsCd=pm.hsCd?tNow+pm.hsCd:0; P.fireSlow=pm.fs?tNow+pm.fs:0; P.drawEnd=pm.dr?tNow+pm.dr:0; P.suppress=pm.su?tNow+pm.su:0; P.ads=!!pm.ads;
     if(IO.lastMe){ // pickups show up as the inventory changing
       for(const sl of ['primary','secondary']){ const a=IO.lastMe.slots[sl], b=pm.slots[sl]; if(b&&(!a||a.id!==b.id)) { flash('picked up '+GUNS[b.id].name); A.pickup(); } }
       if(IO.lastMe.slots.melee.id!==pm.slots.melee.id) { flash('picked up '+MELEE[pm.slots.melee.id].name); A.pickup(); }
