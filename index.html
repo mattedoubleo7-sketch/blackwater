@@ -3475,7 +3475,7 @@ function drawObstacle0(o){
       ctx.beginPath(); if(o.h>o.w){ ctx.moveTo(o.x+o.w/2,y0); ctx.lineTo(o.x+o.w/2,y1); } else { ctx.moveTo(x0,o.y+o.h/2); ctx.lineTo(x1,o.y+o.h/2); } ctx.stroke(); ctx.setLineDash([]); return; }
     ctx.fillStyle=tex(o.garage?'garage':'concrete',o.indoor?'#2a2d33':(o.bldg?'#1e2126':'#2c3038')); ctx.fillRect(x0,y0,x1-x0,y1-y0);
     if(o.bldg&&!o.indoor){ ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=3; ctx.strokeRect(o.x+1,o.y+1,o.w-2,o.h-2); if(!gfxLow()&&o.w<1400) innerShade(o,26,.4); }
-    if(o.indoor){ ctx.fillStyle='rgba(0,0,0,.12)'; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs) for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs) if(((x/gs)+(y/gs))%3===0) ctx.fillRect(x+2,y+2,gs-4,gs-4); }
+    if(o.indoor){ const gs=96; ctx.fillStyle='rgba(0,0,0,.12)'; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs) for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs) if(((x/gs)+(y/gs))%3===0) ctx.fillRect(x+2,y+2,gs-4,gs-4); }
     return; }
   if(o.kind==='water'){ const x0=Math.max(o.x,cam.x-300), y0=Math.max(o.y,cam.y-300), x1=Math.min(o.x+o.w,cam.x+VWw+300), y1=Math.min(o.y+o.h,cam.y+VHw+300); if(x1<=x0||y1<=y0) return;
     if(o.pool){ ctx.fillStyle='#2a8fb8'; ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1; const gs=40; for(let x=Math.floor(x0/gs)*gs;x<x1;x+=gs){ if(x<o.x) continue; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke(); } for(let y=Math.floor(y0/gs)*gs;y<y1;y+=gs){ if(y<o.y) continue; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); }
