@@ -1300,24 +1300,28 @@ function bank(bx,by){ const bw=560, bh=400, t=18, door=100;
   addRect(bx,by,bw,bh,'floor',{sight:false,solid:false,bullet:false,floor:true,bank:true,bldg:true,roof:'tar',roofCol:'#3a3336'});
   addRect(vx,vy,vw,vh,'floor',{sight:false,solid:false,bullet:false,floor:true,vault:true,steel:true});
   const sx=vx+vw*.45, sy=vy+vh*.5; addCirc(sx,sy,30,'safe'); R(vx+12,vy+12,30,60,'locker'); R(vx+12,vy+vh-72,30,60,'locker'); R(vx+vw-52,vy+12,40,40,'crate'); R(vx+vw-52,vy+vh-52,40,40,'crate');
-  // the lobby: teller counter under armoured glass, a queue rope, the manager's office in the north-east with the keycard on the desk
-  const lx=vx+vw+t; R(lx+40,by+t+120,150,30,'counter',{cage:true}); for(let i=0;i<3;i++){ const g=win(lx+40+i*50,by+t+108,50,12); g.hp=60; g.armoured=true; }
-  R(lx+40,by+t+160,150,10,'rope'); R(lx+60,by+bh-t-60,40,40,'crate'); addCirc(lx+140,by+bh-t-40,9,'chair'); addCirc(lx+170,by+bh-t-40,9,'chair'); dec('mat',bx+bw-t-30,by+bh/2,{w:26,h:60,col:'#2a3a5a'}); dec('plant',lx+20,by+bh-t-20); dec('plant',bx+bw-t-24,by+t+24);
-  const ox=bx+bw-190, oy=by+t; wall(ox,oy,t,110); wall(ox,oy+110,120,t); addDoor(ox+120,oy+110,50,t); wall(ox+170,oy+110,bw-t-(ox+170-bx),t);
-  R(ox+30,oy+20,100,50,'table',{desk:true}); addCirc(ox+80,oy+90,9,'chair'); R(ox+140,oy+16,30,80,'locker',{book:true}); dec('picture',ox+90,oy+2,{w:30,h:22,col:'#9a6a4a'}); dec('paper',ox+60,oy+40,{ph:.3});
-  if(MODE!=='kit') spawnLoot(ox+90,oy+45,{t:'card',fixed:true});
-  // the back room: the breaker that powers the vault lock
-  const rx=lx, ry=by+t; wall(rx,ry+100,140,t); wall(rx+140,ry,t,50); addDoor(rx+140,ry+50,t,50); addProp(rx+16,ry+16,36,30,'breaker',{bank:true}); R(rx+70,ry+14,44,60,'locker'); dec('cable',rx+52,ry+34,{dx:60,dy:8}); dec('hazard',rx+70,ry+96,{w:120,h:10});
-  dec('paint',lx+115,by+bh/2+40,{text:'BANK',size:44,col:'rgba(224,180,74,.18)'});
-  Object.assign(BANK,{x:bx+bw/2,y:by+bh/2,sx,sy,dx:vx+vw+t/2,dy:vy+vh*.5,vd,vdSpec:{x:vd.x,y:vd.y,w:vd.w,h:vd.h},cardAt:{x:ox+90,y:oy+45},power:false,open:false,crackBy:null,crackEnd:0,alarmAt:0,has:true});
-  lamps.push({x:sx,y:sy,kind:'bulb',r:160,ph:0,indoor:true}); lamps.push({x:lx+115,y:by+bh/2,kind:'lamp',r:260,ph:1,indoor:true}); lamps.push({x:ox+90,y:oy+60,kind:'lamp',r:170,ph:2,indoor:true}); lamps.push({x:rx+70,y:ry+50,kind:'bulb',r:140,ph:3,indoor:true});
+  const lx=vx+vw+t;                                                              // the lobby starts here; the strip in front of the vault door stays clear
+  // back room, top-left of the lobby: the breaker that powers the vault lock. Door on its east side.
+  const rx=lx, ry=by+t; wall(rx,ry+100,110,t); wall(rx+110,ry,t,26); addDoor(rx+110,ry+26,t,64); wall(rx+110,ry+90,t,28);
+  addProp(rx+14,ry+14,36,30,'breaker',{bank:true}); R(rx+14,ry+54,36,40,'locker'); dec('cable',rx+50,ry+30,{dx:40,dy:6}); dec('hazard',rx+55,ry+96,{w:90,h:10}); dec('paint',rx+82,ry+60,{text:'⚡',size:24,col:'rgba(224,180,74,.35)'});
+  // manager's office, top-right: the keycard on the desk. Door on its south wall.
+  const ox=bx+bw-172, oy=by+t; wall(ox,oy,t,128); wall(ox,oy+110,92,t); addDoor(ox+92,oy+110,50,t); wall(ox+142,oy+110,bx+bw-t-(ox+142),t);
+  R(ox+26,oy+22,96,46,'table',{desk:true}); addCirc(ox+60,oy+88,9,'chair'); dec('plant',ox+140,oy+30); dec('picture',ox+74,oy+2,{w:30,h:22,col:'#9a6a4a'}); dec('paper',ox+50,oy+45,{ph:.3}); dec('mat',ox+117,oy+124,{w:44,h:18,col:'#2a3a5a'});
+  if(MODE!=='kit') spawnLoot(ox+98,oy+50,{t:'card',fixed:true});
+  // the lobby: tellers behind armoured glass, a queue rope, seats by the door. A clear run from the front door to the vault door.
+  R(bx+330,by+220,170,30,'counter',{cage:true}); for(let i=0;i<3;i++){ const g=win(bx+335+i*55,by+208,50,12); g.hp=60; g.armoured=true; }
+  R(bx+340,by+268,150,10,'rope'); R(bx+300,by+bh-t-60,40,40,'crate'); addCirc(bx+480,by+bh-t-40,9,'chair'); addCirc(bx+510,by+bh-t-40,9,'chair'); dec('mat',bx+bw-t-30,by+bh/2,{w:26,h:60,col:'#2a3a5a'}); dec('plant',lx+20,by+bh-t-20); dec('plant',bx+bw-t-24,by+150);
+  dec('paint',bx+400,by+330,{text:'BANK',size:44,col:'rgba(224,180,74,.18)'}); roomWear(lx,by+130,bx+bw-t-lx,bh-t-130,{});
+  Object.assign(BANK,{x:bx+bw/2,y:by+bh/2,sx,sy,dx:vx+vw+t/2,dy:vy+vh*.5,vd,vdSpec:{x:vd.x,y:vd.y,w:vd.w,h:vd.h},cardAt:{x:ox+98,y:oy+50},power:false,open:false,crackBy:null,crackEnd:0,alarmAt:0,has:true});
+  lamps.push({x:sx,y:sy,kind:'bulb',r:160,ph:0,indoor:true}); lamps.push({x:bx+400,y:by+180,kind:'lamp',r:260,ph:1,indoor:true}); lamps.push({x:ox+90,y:oy+60,kind:'lamp',r:170,ph:2,indoor:true}); lamps.push({x:rx+70,y:ry+50,kind:'bulb',r:140,ph:3,indoor:true}); lamps.push({x:bx+400,y:by+330,kind:'lamp',r:220,ph:4,indoor:true});
   lampAt(bx+bw+40,by+bh/2); lampAt(bx+bw/2,by-40);
 }
 function carveFor(bx,by,bw,bh){
   // grow to swallow any building the footprint cuts into, so no half-houses are left standing
-  for(let pass=0;pass<3;pass++){ let grew=false; for(const o of obs){ if(!o.floor||!o.bldg) continue; if(o.x<bx+bw&&o.x+o.w>bx&&o.y<by+bh&&o.y+o.h>by){ const nx=Math.min(bx,o.x-90), ny=Math.min(by,o.y-90), nx2=Math.max(bx+bw,o.x+o.w+90), ny2=Math.max(by+bh,o.y+o.h+90); if(nx<bx||ny<by||nx2>bx+bw||ny2>by+bh){ bx=nx; by=ny; bw=nx2-nx; bh=ny2-ny; grew=true; } } } if(!grew) break; }
-  const zs=UG?[0,7*UG]:[0]; const inR=(x,y,z)=>x>bx&&x<bx+bw&&y>by+z&&y<by+bh+z;
-  for(const z of zs){ for(let i=obs.length-1;i>=0;i--){ const o=obs[i]; if(o.s==='r'){ if(o.floor&&(o.w>MAP/2||o.road)) continue; if(o.x<bx+bw&&o.x+o.w>bx&&o.y<by+bh+z&&o.y+o.h>by+z){ obs.splice(i,1); if(o.kind==='door'){ const k=doors.indexOf(o); if(k>=0) doors.splice(k,1); } if(o.kind==='prop'){ const k=props.indexOf(o.prop); if(k>=0) props.splice(k,1); } } } else if(inR(o.x,o.y,z)) obs.splice(i,1); }
+  for(let pass=0;pass<3;pass++){ let grew=false; for(const o of obs){ if(!o.floor||!o.bldg||o.bank) continue; if(o.x<bx+bw&&o.x+o.w>bx&&o.y<by+bh&&o.y+o.h>by){ const nx=Math.min(bx,o.x-90), ny=Math.min(by,o.y-90), nx2=Math.max(bx+bw,o.x+o.w+90), ny2=Math.max(by+bh,o.y+o.h+90); if(nx<bx||ny<by||nx2>bx+bw||ny2>by+bh){ bx=nx; by=ny; bw=nx2-nx; bh=ny2-ny; grew=true; } } } if(!grew) break; }
+  const gb=BANK.has?{x:BANK.x-320,y:BANK.y-240,w:640,h:480}:null;   // the bank is never carved
+  const zs=UG?[0,7*UG]:[0]; const inR=(x,y,z)=>x>bx&&x<bx+bw&&y>by+z&&y<by+bh+z&&!(gb&&x>gb.x&&x<gb.x+gb.w&&y-z>gb.y&&y-z<gb.y+gb.h);
+  for(const z of zs){ for(let i=obs.length-1;i>=0;i--){ const o=obs[i]; if(gb&&(o.s==='r'?(o.x<gb.x+gb.w&&o.x+o.w>gb.x&&o.y-z<gb.y+gb.h&&o.y-z+o.h>gb.y):(o.x>gb.x&&o.x<gb.x+gb.w&&o.y-z>gb.y&&o.y-z<gb.y+gb.h))) continue; if(o.s==='r'){ if(o.floor&&(o.w>MAP/2||o.road)) continue; if(o.x<bx+bw&&o.x+o.w>bx&&o.y<by+bh+z&&o.y+o.h>by+z){ obs.splice(i,1); if(o.kind==='door'){ const k=doors.indexOf(o); if(k>=0) doors.splice(k,1); } if(o.kind==='prop'){ const k=props.indexOf(o.prop); if(k>=0) props.splice(k,1); } } } else if(inR(o.x,o.y,z)) obs.splice(i,1); }
     for(let i=lamps.length-1;i>=0;i--) if(inR(lamps[i].x,lamps[i].y,z)) lamps.splice(i,1);
     for(let i=decor.length-1;i>=0;i--) if(inR(decor[i].x,decor[i].y,z)) decor.splice(i,1);
     for(let i=loot.length-1;i>=0;i--) if(inR(loot[i].x,loot[i].y,z)) loot.splice(i,1); }
@@ -1473,7 +1477,9 @@ function placeClub(){ for(let t=0;t<300;t++){ const bx=srnd(MAP-1400,700), by=sr
     let ok=true; for(const o of obs){ if(o.floor) continue; if(o.s==='r'){ if(bx-60<o.x+o.w&&bx+CLUB_W+60>o.x&&by-60<o.y+o.h&&by+CLUB_H+60>o.y){ ok=false; break; } } else if(o.x>bx-80&&o.x<bx+CLUB_W+80&&o.y>by-80&&o.y<by+CLUB_H+80){ ok=false; break; } }
     if(ok){ club(bx,by); return; } }
   // nothing clear enough: clear a footprint away from the bank
-  let bx=Math.round(MAP*.5+(BANK.has&&BANK.x>MAP/2?-1:1)*MAP*.22-CLUB_W/2), by=Math.round(MAP*.5-CLUB_H/2); carveFor(bx-80,by-80,CLUB_W+160,CLUB_H+160); club(bx,by); }
+  // nothing clear enough: carve a footprint in whichever quadrant is furthest from the bank
+  let best=null; for(const [qx,qy] of [[-1,-1],[1,-1],[-1,1],[1,1],[-1,0],[1,0]]){ const bx=Math.round(MAP*.5+qx*MAP*.22-CLUB_W/2), by=Math.round(MAP*.5+qy*MAP*.2-CLUB_H/2); const d=BANK.has?Math.hypot(bx+CLUB_W/2-BANK.x,by+CLUB_H/2-BANK.y):1e9; if(!best||d>best.d) best={bx,by,d}; }
+  carveFor(best.bx-80,best.by-80,CLUB_W+160,CLUB_H+160); club(best.bx,best.by); }
 /* a spot of w×h with nothing solid in it, clear of the bank and the club; falls back to carving one out */
 function findSpot(w,h,avoid){ for(let t=0;t<260;t++){ const bx=srnd(MAP-w-300,300), by=srnd(MAP-h-300,300);
     if(BANK.has && bx<BANK.x+400&&bx+w>BANK.x-400&&by<BANK.y+320&&by+h>BANK.y-320) continue;
